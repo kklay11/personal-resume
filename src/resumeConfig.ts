@@ -162,15 +162,15 @@ export const createSection = (
 });
 
 const defaultPersonalInfo: PersonalInfo = {
-  fullName: '邓凯元',
-  phone: '17802973369',
-  email: '17802973369@163.com',
-  gender: '男',
-  age: '25',
-  city: '陕西省宝鸡市',
-  blog: '',
-  headline: '具备 AI + 工程化双栈能力，擅长把复杂模型做成可交付产品。',
-  targetRole: '算法工程师 / AI 应用开发',
+  fullName: '林沐然',
+  phone: '13800001234',
+  email: 'linmuran@example.com',
+  gender: '女',
+  age: '26',
+  city: '杭州市',
+  blog: 'https://portfolio.example.com',
+  headline: '具备良好的产品思维与执行能力，能够独立推进从需求梳理到交付上线的完整流程。',
+  targetRole: '产品经理 / 前端开发',
   avatar: '',
 };
 
@@ -196,68 +196,68 @@ export const createDefaultResume = (): ResumeData => ({
     createSection('education', {
       items: [
         {
-          school: '长春理工大学',
-          major: '软件工程',
+          school: '星海大学',
+          major: '信息管理与信息系统',
           degree: '硕士',
-          dateRange: '2023.09 - 2026.07',
-          description: '聚焦智能信息处理与计算机视觉方向。',
+          dateRange: '2021.09 - 2024.06',
+          description: '主修产品设计、数据分析与信息系统规划，参与多项校内项目实践。',
         },
         {
-          school: '西安工业大学',
-          major: '土木工程',
+          school: '江城学院',
+          major: '数字媒体技术',
           degree: '本科',
-          dateRange: '2018.09 - 2022.07',
-          description: '完成结构建模、工程项目管理等课程学习。',
+          dateRange: '2017.09 - 2021.06',
+          description: '系统学习交互设计、前端开发与视觉传达相关课程。',
         },
       ],
     }),
     createSection('projects', {
       items: [
         {
-          name: 'MICCAI 2025 国际医学影像挑战赛',
-          role: '项目负责人',
-          dateRange: '2025.08 - 2025.09',
+          name: '校园活动报名平台',
+          role: '产品负责人',
+          dateRange: '2023.03 - 2023.08',
           description: [
-            '围绕低场 MRI 噪声抑制开展研究，改进扩散模型与条件引导采样流程。',
-            '将 Docker 打包、推理脚本、一键提交流程串联，形成算法到工程闭环。',
-            '作为个人选手进入复赛验证阶段，作品展示完整的工程化能力。',
+            '负责需求调研、功能拆解和原型设计，输出完整 PRD 与交互稿。',
+            '协同前后端完成报名、审核、提醒等核心流程设计与上线。',
+            '推动首月注册用户突破 3000，显著提升活动报名效率。',
           ],
         },
         {
-          name: '本地知识库与网络查询学术 RAG 检索器',
-          role: '全栈开发',
-          dateRange: '2025.10 - 2025.11',
+          name: '内容运营数据看板',
+          role: '前端开发',
+          dateRange: '2024.01 - 2024.04',
           description: [
-            '基于 LlamaIndex 与 Gemini 2.5 Flash 搭建混合检索流水线。',
-            '用 BGEM3 构建中文向量召回，融合 Arxiv 官方 API 实现多源检索。',
-            '通过排序策略提升结果质量，输出可交付的学术检索 Agent。',
+            '基于 React 与 ECharts 实现多维数据展示、趋势分析与筛选联动。',
+            '优化首屏加载与图表渲染性能，提升复杂数据场景下的交互体验。',
+            '支持运营团队按周追踪核心指标，减少人工汇总时间。',
           ],
         },
       ],
     }),
     createSection('skills', {
       items: [
-        { category: '编程语言', items: ['TypeScript', 'Python', 'SQL'] },
-        { category: '前端工程', items: ['React', 'Vite', '状态管理', 'PDF 导出'] },
-        { category: 'AI 技术栈', items: ['PyTorch', 'RAG', '多模态应用', 'Docker'] },
+        { category: '产品能力', items: ['需求分析', '原型设计', '用户调研', '流程梳理'] },
+        { category: '前端技术', items: ['React', 'TypeScript', 'Vite', 'ECharts'] },
+        { category: '协作工具', items: ['Figma', 'Axure', 'Jira', 'Notion'] },
       ],
     }),
     createSection('awards', {
       items: [
         {
-          name: 'MICCAI 2025 竞赛复赛入围',
-          dateRange: '2025.09',
-          description: '个人参赛作品进入复赛验证阶段，展示完整的算法与工程能力。',
+          name: '校级优秀毕业生',
+          dateRange: '2021.06',
+          description: '因项目实践与综合表现突出获得院校表彰。',
         },
       ],
     }),
     createSection('campus', {
       items: [
         {
-          name: '研究生技术分享会',
-          role: '主讲人',
-          dateRange: '2024.10 - 2025.01',
-          description: ['组织 4 场主题分享，覆盖检索增强生成、前端工程化与模型部署。'],
+          name: '创新创业协会',
+          role: '活动策划负责人',
+          dateRange: '2019.09 - 2020.12',
+          description: ['策划并执行多场校园活动，统筹报名、宣传与现场协作。'],
         },
       ],
     }),
@@ -272,10 +272,10 @@ export const createDefaultResume = (): ResumeData => ({
     createSection('certificates', {
       items: [
         {
-          name: '大学英语六级',
-          issuer: '全国大学英语四六级考试委员会',
-          dateRange: '2021.12',
-          description: '具备良好的英文文献阅读与技术资料检索能力。',
+          name: 'PMP 基础培训证书',
+          issuer: '项目管理学习中心',
+          dateRange: '2023.11',
+          description: '完成项目管理基础课程学习，熟悉需求、进度与风险管理方法。',
         },
       ],
     }),
@@ -283,7 +283,7 @@ export const createDefaultResume = (): ResumeData => ({
       items: [
         {
           content:
-            '具备扎实的工程实现能力和良好的产品化意识，能够独立完成从需求分析、原型设计到前后端联调与上线交付的完整流程。',
+            '具备较强的跨团队协作能力与执行意识，能够围绕业务目标推进需求落地，并持续关注用户体验与交付质量。',
         },
       ],
     }),

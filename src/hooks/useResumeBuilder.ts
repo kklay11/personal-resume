@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createDefaultResume, createEmptyItem, createSection, getSectionSchema } from '../resumeConfig';
 import type { ResumeData, ResumeSection, SectionType, SectionValue } from '../types';
 
-const STORAGE_KEY = 'resume-builder:state:v1';
+const STORAGE_KEY = 'resume-builder:state:v2';
 
 const loadResume = (): ResumeData => {
   const baseResume = createDefaultResume();
