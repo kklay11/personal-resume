@@ -59,6 +59,8 @@ export interface ResumeSettings {
   accentColor: string;
   previewMode: 'paged' | 'compact';
   showProfileHeader: boolean;
+  profileMetaNewLine: boolean;
+  contactMetaNewLine: boolean;
   sectionTitleSize: number;
   contentFontSize: number;
   sectionGap: number;

@@ -1,12 +1,65 @@
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-
 const sanitizeFileName = (value: string) =>
   value
     .trim()
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, '-')
     .toLowerCase() || 'resume';
+
+const escapeAttribute = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+
+const collectDocumentStyles = () =>
+  Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+    .map((node) => node.outerHTML)
+    .join('\n');
+
+const PRINT_CSS = `
+  <style>
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-root {
+      background: #ffffff;
+    }
+
+    .preview-pages {
+      display: block !important;
+      padding: 0 !important;
+      gap: 0 !important;
+      background: #ffffff !important;
+      overflow: visible !important;
+    }
+
+    .resume-paper {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      margin: 0 auto !important;
+      box-shadow: none !important;
+      border: none !important;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .resume-paper:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+  </style>
+`;
 
 export const exportResumePdf = async (container: HTMLElement, fileName: string) => {
   const pages = Array.from(container.querySelectorAll<HTMLElement>('.resume-paper'));
@@ -19,85 +72,72 @@ export const exportResumePdf = async (container: HTMLElement, fileName: string) 
     await (document as Document & { fonts: FontFaceSet }).fonts.ready;
   }
 
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: 'a4',
-    compress: true,
-  });
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
+  const cleanup = () => {
+    window.setTimeout(() => {
+      iframe.remove();
+    }, 1000);
+  };
 
-  for (const [index, page] of pages.entries()) {
-    const canvas = await html2canvas(page, {
-      scale: window.devicePixelRatio > 1 ? 2.5 : 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    });
+  const iframeWindow = iframe.contentWindow;
+  const iframeDocument = iframe.contentDocument;
 
-    if (index > 0) {
-      pdf.addPage();
-    }
-
-    const renderedHeight = (canvas.height * pageWidth) / canvas.width;
-
-    if (renderedHeight <= pageHeight) {
-      const image = canvas.toDataURL('image/png');
-      pdf.addImage(image, 'PNG', 0, 0, pageWidth, renderedHeight, `resume-page-${index}`, 'FAST');
-      continue;
-    }
-
-    const slicePixelHeight = Math.floor((pageHeight * canvas.width) / pageWidth);
-    let offsetY = 0;
-    let sliceIndex = 0;
-
-    while (offsetY < canvas.height) {
-      const currentSliceHeight = Math.min(slicePixelHeight, canvas.height - offsetY);
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = canvas.width;
-      sliceCanvas.height = currentSliceHeight;
-
-      const context = sliceCanvas.getContext('2d');
-
-      if (!context) {
-        throw new Error('PDF 导出失败：无法创建画布上下文。');
-      }
-
-      context.drawImage(
-        canvas,
-        0,
-        offsetY,
-        canvas.width,
-        currentSliceHeight,
-        0,
-        0,
-        canvas.width,
-        currentSliceHeight,
-      );
-
-      const sliceHeight = (currentSliceHeight * pageWidth) / canvas.width;
-      const image = sliceCanvas.toDataURL('image/png');
-
-      if (sliceIndex > 0) {
-        pdf.addPage();
-      }
-
-      pdf.addImage(
-        image,
-        'PNG',
-        0,
-        0,
-        pageWidth,
-        sliceHeight,
-        `resume-page-${index}-slice-${sliceIndex}`,
-        'FAST',
-      );
-
-      offsetY += currentSliceHeight;
-      sliceIndex += 1;
-    }
+  if (!iframeWindow || !iframeDocument) {
+    iframe.remove();
+    throw new Error('无法创建打印上下文，请稍后重试。');
   }
 
-  pdf.save(`${sanitizeFileName(fileName)}.pdf`);
+  const wrapperStyle = container.closest('.app-shell')?.getAttribute('style') ?? '';
+  const styleMarkup = collectDocumentStyles();
+  const title = sanitizeFileName(fileName);
+
+  iframeDocument.open();
+  iframeDocument.write(`
+    <!doctype html>
+    <html lang="zh-CN">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${title}</title>
+        ${styleMarkup}
+        ${PRINT_CSS}
+      </head>
+      <body>
+        <div class="print-root" style='${escapeAttribute(wrapperStyle)}'>
+          <div class="preview-pages">${container.innerHTML}</div>
+        </div>
+      </body>
+    </html>
+  `);
+  iframeDocument.close();
+
+  await new Promise<void>((resolve) => {
+    const finish = () => window.setTimeout(resolve, 300);
+
+    if (iframeDocument.readyState === 'complete') {
+      finish();
+      return;
+    }
+
+    iframe.addEventListener('load', finish, { once: true });
+  });
+
+  if ('fonts' in iframeDocument) {
+    await (iframeDocument as Document & { fonts: FontFaceSet }).fonts.ready;
+  }
+
+  iframeWindow.focus();
+  iframeWindow.print();
+  cleanup();
 };

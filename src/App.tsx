@@ -17,6 +17,10 @@ interface PreviewPage {
 const BASIC_TABS_LABEL = '基本信息';
 const TITLE_SIZE_OPTIONS = [15, 16, 18, 20, 22, 24];
 const CONTENT_SIZE_OPTIONS = [12, 13, 14, 15, 16, 18];
+const RESUME_PAGE_BOTTOM_BUFFER = 16;
+const RESUME_HEADER_GAP = 20;
+const RESUME_TITLE_GAP = 12;
+const RESUME_ITEM_GAP = 12;
 
 const asText = (value: SectionValue | undefined) => (typeof value === 'string' ? value : '');
 
@@ -66,6 +70,20 @@ const waitForNextFrame = () =>
   new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
+
+const joinMetaGroup = (values: string[]) => values.filter(Boolean).join(' ｜ ');
+const getDescriptionLines = (item: SectionItem) => {
+  const lines = asList(item.description);
+
+  if (lines.length > 0) {
+    return lines;
+  }
+
+  const singleDescription = asText(item.description);
+  return singleDescription ? [singleDescription] : [];
+};
+const isCompactTextSection = (type: ResumeSection['type']) =>
+  type === 'awards' || type === 'campus' || type === 'certificates';
 
 const NumberField = ({
   label,
@@ -317,39 +335,69 @@ const SectionForm = ({
   </div>
 );
 
-const ResumeHeader = ({ resume }: { resume: ResumeData }) => (
-  <header className="resume-header">
-    <div className="resume-header__identity">
-      <h1>{resume.personalInfo.fullName || '未命名'}</h1>
-      <div className="resume-meta">
-        {[resume.personalInfo.gender, resume.personalInfo.age ? `${resume.personalInfo.age} 岁` : '', resume.personalInfo.city]
-          .filter(Boolean)
-          .join(' ｜ ')}
+const ResumeHeader = ({ resume }: { resume: ResumeData }) => {
+  const profileMeta = joinMetaGroup([
+    resume.personalInfo.gender,
+    resume.personalInfo.age ? `${resume.personalInfo.age} 岁` : '',
+    resume.personalInfo.city,
+  ]);
+  const contactMeta = joinMetaGroup([
+    resume.personalInfo.phone,
+    resume.personalInfo.email,
+    resume.personalInfo.blog,
+  ]);
+
+  return (
+    <header className="resume-header">
+      <div className="resume-header__identity">
+        <h1>{resume.personalInfo.fullName || '未命名'}</h1>
+        {profileMeta || contactMeta ? (
+          <div className="resume-meta-cluster">
+            {profileMeta ? (
+              <div className={resume.settings.profileMetaNewLine ? 'resume-meta' : 'resume-meta resume-meta--inline'}>
+                {profileMeta}
+              </div>
+            ) : null}
+            {contactMeta ? (
+              <div className={resume.settings.contactMetaNewLine ? 'resume-meta' : 'resume-meta resume-meta--inline'}>
+                {contactMeta}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {resume.personalInfo.targetRole ? <div className="resume-headline">{resume.personalInfo.targetRole}</div> : null}
+        {resume.personalInfo.headline ? <p className="resume-summary">{resume.personalInfo.headline}</p> : null}
       </div>
-      <div className="resume-meta">
-        {[resume.personalInfo.phone, resume.personalInfo.email].filter(Boolean).join(' ｜ ')}
+      <div className="resume-header__avatar">
+        {resume.personalInfo.avatar ? (
+          <img src={resume.personalInfo.avatar} alt={resume.personalInfo.fullName || '头像'} />
+        ) : (
+          <div className="avatar-fallback">{resume.personalInfo.fullName.slice(0, 1) || '简'}</div>
+        )}
       </div>
-      {resume.personalInfo.targetRole ? <div className="resume-headline">{resume.personalInfo.targetRole}</div> : null}
-      {resume.personalInfo.headline ? <p className="resume-summary">{resume.personalInfo.headline}</p> : null}
-      {resume.personalInfo.blog ? <div className="resume-blog">{resume.personalInfo.blog}</div> : null}
-    </div>
-    <div className="resume-header__avatar">
-      {resume.personalInfo.avatar ? (
-        <img src={resume.personalInfo.avatar} alt={resume.personalInfo.fullName || '头像'} />
-      ) : (
-        <div className="avatar-fallback">{resume.personalInfo.fullName.slice(0, 1) || '简'}</div>
-      )}
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const GenericExperience = ({ section }: { section: ResumeSection }) => (
   <div className="section-content">
     {getVisibleItems(section).map((item, index) => {
       const title = asText(item.name) || asText(item.company);
       const subtitle = asText(item.role) || asText(item.subtitle) || asText(item.issuer);
-      const lines = asList(item.description);
-      const singleDescription = asText(item.description);
+      const lines = getDescriptionLines(item);
+      const compactText = lines.join('；');
+
+      if (isCompactTextSection(section.type)) {
+        return (
+          <article key={`${section.id}-${index}`} className="compact-entry">
+            <div className="compact-entry__main">
+              <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong>
+              {compactText ? <span>{compactText}</span> : null}
+            </div>
+            {asText(item.dateRange) ? <span className="compact-entry__date">{asText(item.dateRange)}</span> : null}
+          </article>
+        );
+      }
 
       return (
         <article key={`${section.id}-${index}`} className="timeline-card">
@@ -358,15 +406,9 @@ const GenericExperience = ({ section }: { section: ResumeSection }) => (
             <span>{asText(item.dateRange)}</span>
           </div>
           {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
-          {lines.length > 0 ? (
-            <ul>
-              {lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : singleDescription ? (
-            <p>{singleDescription}</p>
-          ) : null}
+          {lines.map((line, lineIndex) => (
+            <p key={`${section.id}-${index}-${lineIndex}`}>{line}</p>
+          ))}
         </article>
       );
     })}
@@ -448,8 +490,20 @@ const SectionItemView = ({
 
   const title = asText(item.name) || asText(item.company);
   const subtitle = asText(item.role) || asText(item.subtitle) || asText(item.issuer);
-  const lines = asList(item.description);
-  const singleDescription = asText(item.description);
+  const lines = getDescriptionLines(item);
+  const compactText = lines.join('；');
+
+  if (isCompactTextSection(section.type)) {
+    return (
+      <article className="compact-entry" data-index={index}>
+        <div className="compact-entry__main">
+          <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong>
+          {compactText ? <span>{compactText}</span> : null}
+        </div>
+        {asText(item.dateRange) ? <span className="compact-entry__date">{asText(item.dateRange)}</span> : null}
+      </article>
+    );
+  }
 
   return (
     <article className="timeline-card" data-index={index}>
@@ -458,15 +512,9 @@ const SectionItemView = ({
         <span>{asText(item.dateRange)}</span>
       </div>
       {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
-      {lines.length > 0 ? (
-        <ul>
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      ) : singleDescription ? (
-        <p>{singleDescription}</p>
-      ) : null}
+      {lines.map((line, lineIndex) => (
+        <p key={`${section.id}-${index}-${lineIndex}`}>{line}</p>
+      ))}
     </article>
   );
 };
@@ -579,10 +627,10 @@ const App = () => {
 
   useLayoutEffect(() => {
     const pageCapacity =
-      1123 - resume.settings.pageMarginTop - resume.settings.pageMarginBottom - 28;
+      1123 - resume.settings.pageMarginTop - resume.settings.pageMarginBottom - RESUME_PAGE_BOTTOM_BUFFER;
     const headerHeight =
       resume.settings.showProfileHeader && measureHeaderRef.current
-        ? measureHeaderRef.current.offsetHeight + 26
+        ? measureHeaderRef.current.offsetHeight + RESUME_HEADER_GAP
         : 0;
 
     const pages: PreviewPage[] = [];
@@ -593,8 +641,8 @@ const App = () => {
     visibleSections.forEach((section) => {
       const items = getVisibleItems(section);
       const titleHeight =
-        (measureSectionTitleRefs.current[section.id]?.offsetHeight ?? resume.settings.sectionTitleSize + 20) +
-        14;
+        (measureSectionTitleRefs.current[section.id]?.offsetHeight ?? resume.settings.sectionTitleSize + 18) +
+        RESUME_TITLE_GAP;
 
       if (items.length === 0) {
         return;
@@ -632,7 +680,7 @@ const App = () => {
           const blockHeight =
             fragmentHeight +
             itemHeight +
-            (fragmentItems.length > 0 ? 14 : 0) +
+            (fragmentItems.length > 0 ? RESUME_ITEM_GAP : 0) +
             resume.settings.sectionGap;
 
           if (
@@ -654,7 +702,7 @@ const App = () => {
           }
 
           fragmentItems.push(items[itemIndex]);
-          fragmentHeight += itemHeight + (fragmentItems.length > 1 ? 14 : 0);
+          fragmentHeight += itemHeight + (fragmentItems.length > 1 ? RESUME_ITEM_GAP : 0);
           itemIndex += 1;
         }
 
@@ -679,11 +727,13 @@ const App = () => {
       }
     });
 
-    pages.push({
-      id: `page-${pages.length + 1}`,
-      showHeader: pages.length === 0 && resume.settings.showProfileHeader,
-      sections: currentSections,
-    });
+    if (currentSections.length > 0 || pages.length === 0) {
+      pages.push({
+        id: `page-${pages.length + 1}`,
+        showHeader: pages.length === 0 && resume.settings.showProfileHeader,
+        sections: currentSections,
+      });
+    }
 
     setPreviewPages(pages);
   }, [resume, visibleSections]);
@@ -834,7 +884,6 @@ const App = () => {
                   启用并填写左侧模块后，这里会实时生成可导出的简历内容。
                 </div>
               ) : null}
-              <div className="page-index">第 {index + 1} 页</div>
             </div>
           ))}
         </div>
@@ -1093,7 +1142,7 @@ const App = () => {
                 <div className="config-group">
                   <div className="section-intro">
                     <h2>基本信息配置</h2>
-                    <p>控制简历头部是否展示，并快速跳转到基本信息编辑区。</p>
+                    <p>控制简历头部展示和基本信息分组换行方式。</p>
                   </div>
 
                   <label className="switch-card">
@@ -1105,6 +1154,30 @@ const App = () => {
                       type="checkbox"
                       checked={resume.settings.showProfileHeader}
                       onChange={() => updateSetting('showProfileHeader', !resume.settings.showProfileHeader)}
+                    />
+                  </label>
+
+                  <label className="switch-card">
+                    <div>
+                      <strong>性别 / 年龄 / 城市单独一行</strong>
+                      <p>关闭后会与电话、邮箱、博客信息尽量并排显示，压缩头部高度。</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={resume.settings.profileMetaNewLine}
+                      onChange={() => updateSetting('profileMetaNewLine', !resume.settings.profileMetaNewLine)}
+                    />
+                  </label>
+
+                  <label className="switch-card">
+                    <div>
+                      <strong>电话 / 邮箱 / 博客单独一行</strong>
+                      <p>关闭后联系方式会和其他基本信息分组并排排列。</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={resume.settings.contactMetaNewLine}
+                      onChange={() => updateSetting('contactMetaNewLine', !resume.settings.contactMetaNewLine)}
                     />
                   </label>
 

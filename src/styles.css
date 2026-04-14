@@ -33,11 +33,11 @@ button {
   --resume-title-size: 24px;
   --resume-content-size: 15px;
   --resume-line-height: 1.55;
-  --resume-section-gap: 22px;
-  --resume-margin-top: 48px;
-  --resume-margin-bottom: 48px;
-  --resume-margin-left: 54px;
-  --resume-margin-right: 54px;
+  --resume-section-gap: 18px;
+  --resume-margin-top: 40px;
+  --resume-margin-bottom: 40px;
+  --resume-margin-left: 44px;
+  --resume-margin-right: 44px;
   display: grid;
   grid-template-columns: minmax(520px, 56%) minmax(420px, 44%);
   gap: 16px;
@@ -385,9 +385,9 @@ button {
 .resume-header {
   display: grid;
   grid-template-columns: 1fr 110px;
-  gap: 20px;
+  gap: 18px;
   align-items: center;
-  margin-bottom: 26px;
+  margin-bottom: 20px;
 }
 
 .resume-header__identity {
@@ -400,17 +400,35 @@ button {
   letter-spacing: 2px;
 }
 
+.resume-meta-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  margin-top: 8px;
+}
+
 .resume-meta,
-.resume-headline,
-.resume-blog {
-  margin-top: 10px;
+.resume-headline {
   color: #334155;
   font-size: var(--resume-content-size);
 }
 
+.resume-meta {
+  width: 100%;
+}
+
+.resume-meta--inline {
+  width: auto;
+}
+
+.resume-headline {
+  margin-top: 8px;
+}
+
 .resume-summary {
-  margin: 14px auto 0;
-  max-width: 88%;
+  margin: 10px auto 0;
+  max-width: 92%;
   color: #475569;
   font-size: var(--resume-content-size);
 }
@@ -420,21 +438,22 @@ button {
 }
 
 .resume-section__title {
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 2px solid var(--accent-color);
   font-size: var(--resume-title-size);
   font-weight: 700;
 }
 
 .section-content {
-  margin-top: 14px;
+  margin-top: 12px;
   font-size: var(--resume-content-size);
   line-height: var(--resume-line-height);
 }
 
 .education-row,
 .timeline-card__headline,
-.skill-row {
+.skill-row,
+.compact-entry {
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -442,14 +461,15 @@ button {
 
 .education-row + .education-row,
 .timeline-card + .timeline-card,
-.skill-row + .skill-row {
-  margin-top: 14px;
+.skill-row + .skill-row,
+.compact-entry + .compact-entry {
+  margin-top: 12px;
 }
 
 .education-row p,
 .timeline-card p,
 .paragraph-block {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #334155;
 }
 
@@ -458,21 +478,20 @@ button {
   color: #475569;
 }
 
-.timeline-card ul {
-  margin: 10px 0 0;
-  padding-left: 18px;
+.compact-entry {
+  align-items: baseline;
 }
 
-.timeline-card li + li {
-  margin-top: 6px;
+.compact-entry__main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: #334155;
 }
 
-.page-index {
-  position: absolute;
-  right: 24px;
-  bottom: 20px;
-  color: #94a3b8;
-  font-size: 12px;
+.compact-entry__date {
+  flex-shrink: 0;
+  color: #475569;
 }
 
 .empty-preview {
