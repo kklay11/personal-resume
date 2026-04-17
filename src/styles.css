@@ -156,8 +156,8 @@ button {
 .avatar-preview,
 .resume-header__avatar,
 .avatar-fallback {
-  width: 108px;
-  height: 108px;
+  width: 94px;
+  aspect-ratio: var(--resume-avatar-ratio, 0.714);
   border-radius: 24px;
   overflow: hidden;
   background: linear-gradient(135deg, #dbeafe, #93c5fd);
@@ -172,7 +172,9 @@ button {
 .resume-header__avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  background: #ffffff;
 }
 
 .hidden-input {
@@ -227,6 +229,11 @@ button {
 .field textarea {
   min-height: 110px;
   resize: vertical;
+}
+
+.field-hint {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .full-width {
@@ -473,9 +480,42 @@ button {
   color: #334155;
 }
 
+.skill-block {
+  color: #334155;
+}
+
 .timeline-card__subline {
   margin-top: 4px;
   color: #475569;
+}
+
+.markdown-paragraph {
+  margin: 6px 0 0;
+  color: #334155;
+}
+
+.markdown-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: #334155;
+}
+
+.markdown-list li + li {
+  margin-top: 4px;
+}
+
+.skill-block .markdown-paragraph:first-child,
+.paragraph-block .markdown-paragraph:first-child,
+.education-row .markdown-paragraph:first-child,
+.timeline-card .markdown-paragraph:first-child {
+  margin-top: 0;
+}
+
+.skill-block .markdown-list:first-child,
+.paragraph-block .markdown-list:first-child,
+.education-row .markdown-list:first-child,
+.timeline-card .markdown-list:first-child {
+  margin-top: 0;
 }
 
 .compact-entry {

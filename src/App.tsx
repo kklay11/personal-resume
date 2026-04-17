@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { exportResumePdf } from './lib/pdf';
 import { getSectionSchema, SECTION_SCHEMAS } from './resumeConfig';
@@ -23,9 +23,6 @@ const RESUME_TITLE_GAP = 12;
 const RESUME_ITEM_GAP = 12;
 
 const asText = (value: SectionValue | undefined) => (typeof value === 'string' ? value : '');
-
-const asList = (value: SectionValue | undefined) =>
-  Array.isArray(value) ? value.filter(Boolean) : typeof value === 'string' && value.trim() ? [value] : [];
 
 const itemHasContent = (item: SectionItem) =>
   Object.values(item).some((value) =>
@@ -72,18 +69,169 @@ const waitForNextFrame = () =>
   });
 
 const joinMetaGroup = (values: string[]) => values.filter(Boolean).join(' ｜ ');
-const getDescriptionLines = (item: SectionItem) => {
-  const lines = asList(item.description);
+const isContinuationItem = (item: SectionItem) => asText(item.__continuation) === '1';
 
-  if (lines.length > 0) {
-    return lines;
+const chunkMarkdownValue = (value: string) => {
+  const normalized = value.replace(/\r\n/g, '\n').trim();
+
+  if (!normalized) {
+    return [];
   }
 
-  const singleDescription = asText(item.description);
-  return singleDescription ? [singleDescription] : [];
+  const chunks: string[] = [];
+  let paragraphLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    chunks.push(paragraphLines.join('\n'));
+    paragraphLines = [];
+  };
+
+  normalized.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      return;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      flushParagraph();
+      chunks.push(trimmed);
+      return;
+    }
+
+    paragraphLines.push(line);
+  });
+
+  flushParagraph();
+
+  return chunks.length > 0 ? chunks : [normalized];
 };
+
+const splitItemForPagination = (section: ResumeSection, item: SectionItem, itemIndex: number): SectionItem[] => {
+  const targetKey = section.type === 'skills' || section.type === 'summary' ? 'content' : 'description';
+  const value = normalizeMultilineValue(item[targetKey]);
+  const chunks = chunkMarkdownValue(value);
+
+  if (chunks.length <= 1) {
+    return [{ ...item, __measureId: `${section.id}-${itemIndex}-0` }];
+  }
+
+  return chunks.map((chunk, chunkIndex) => ({
+    ...item,
+    [targetKey]: chunk,
+    dateRange: chunkIndex === 0 ? item.dateRange ?? '' : '',
+    __continuation: chunkIndex === 0 ? '' : '1',
+    __measureId: `${section.id}-${itemIndex}-${chunkIndex}`,
+  }));
+};
+
+const prepareSectionForPagination = (section: ResumeSection): ResumeSection => ({
+  ...section,
+  items: section.items.flatMap((item, itemIndex) => splitItemForPagination(section, item, itemIndex)),
+});
+const normalizeMultilineValue = (value: SectionValue | undefined) => {
+  if (Array.isArray(value)) {
+    return value.join('\n');
+  }
+
+  return typeof value === 'string' ? value.replace(/\r\n/g, '\n') : '';
+};
+
+const renderInlineMarkdown = (value: string, keyPrefix: string): ReactNode[] =>
+  value.split(/(\*\*.*?\*\*)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <strong key={`${keyPrefix}-strong-${index}`}>{part.slice(2, -2)}</strong>
+      );
+    }
+
+    return <span key={`${keyPrefix}-text-${index}`}>{part}</span>;
+  });
+
+const renderMultilineInline = (value: string, keyPrefix: string): ReactNode[] =>
+  value.split('\n').flatMap((line, index, lines) => {
+    const nodes: ReactNode[] = renderInlineMarkdown(line, `${keyPrefix}-line-${index}`);
+
+    if (index < lines.length - 1) {
+      nodes.push(<br key={`${keyPrefix}-br-${index}`} />);
+    }
+
+    return nodes;
+  });
+
+const renderMarkdownBlocks = (value: SectionValue | undefined, keyPrefix: string) => {
+  const normalized = normalizeMultilineValue(value).trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const blocks: ReactNode[] = [];
+  const lines = normalized.split('\n');
+  let paragraphLines: string[] = [];
+  let listItems: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    blocks.push(
+      <p key={`${keyPrefix}-paragraph-${blocks.length}`} className="markdown-paragraph">
+        {renderMultilineInline(paragraphLines.join('\n'), `${keyPrefix}-paragraph-${blocks.length}`)}
+      </p>,
+    );
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length === 0) {
+      return;
+    }
+
+    blocks.push(
+      <ul key={`${keyPrefix}-list-${blocks.length}`} className="markdown-list">
+        {listItems.map((item, index) => (
+          <li key={`${keyPrefix}-item-${index}`}>{renderMultilineInline(item, `${keyPrefix}-item-${index}`)}</li>
+        ))}
+      </ul>,
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      flushParagraph();
+      listItems.push(trimmed.replace(/^[-*]\s+/, ''));
+      return;
+    }
+
+    flushList();
+    paragraphLines.push(line);
+  });
+
+  flushParagraph();
+  flushList();
+
+  return blocks;
+};
+
+const getDescriptionText = (item: SectionItem) => normalizeMultilineValue(item.description).trim();
 const isCompactTextSection = (type: ResumeSection['type']) =>
-  type === 'awards' || type === 'campus' || type === 'certificates';
+  type === 'campus' || type === 'certificates';
 
 const NumberField = ({
   label,
@@ -292,25 +440,19 @@ const SectionForm = ({
                 <label key={field.key} className={isWide ? 'field full-width' : 'field'}>
                   <span>{field.label}</span>
                   {field.type === 'textarea' ? (
-                    <textarea
-                      value={asText(value)}
-                      placeholder={field.placeholder}
-                      onChange={(event) => onUpdateField(itemIndex, field.key, event.target.value)}
-                    />
+                    <>
+                      <textarea
+                        value={asText(value)}
+                        placeholder={field.placeholder}
+                        onChange={(event) => onUpdateField(itemIndex, field.key, event.target.value)}
+                      />
+                      <small className="field-hint">支持 **加粗**、- 列表、空行分段。</small>
+                    </>
                   ) : field.type === 'list' ? (
                     <textarea
-                      value={asList(value).join('\n')}
+                      value={normalizeMultilineValue(value)}
                       placeholder={field.placeholder}
-                      onChange={(event) =>
-                        onUpdateField(
-                          itemIndex,
-                          field.key,
-                          event.target.value
-                            .split('\n')
-                            .map((line) => line.trim())
-                            .filter(Boolean),
-                        )
-                      }
+                      onChange={(event) => onUpdateField(itemIndex, field.key, event.target.value)}
                     />
                   ) : (
                     <input
@@ -382,33 +524,39 @@ const ResumeHeader = ({ resume }: { resume: ResumeData }) => {
 const GenericExperience = ({ section }: { section: ResumeSection }) => (
   <div className="section-content">
     {getVisibleItems(section).map((item, index) => {
+      const continuation = isContinuationItem(item);
       const title = asText(item.name) || asText(item.company);
       const subtitle = asText(item.role) || asText(item.subtitle) || asText(item.issuer);
-      const lines = getDescriptionLines(item);
-      const compactText = lines.join('；');
+      const descriptionText = getDescriptionText(item);
 
       if (isCompactTextSection(section.type)) {
         return (
           <article key={`${section.id}-${index}`} className="compact-entry">
             <div className="compact-entry__main">
-              <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong>
-              {compactText ? <span>{compactText}</span> : null}
+              {!continuation ? <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong> : null}
+              {descriptionText ? (
+                <span>{renderMultilineInline(descriptionText.replace(/\n+/g, '；'), `${section.id}-${index}-compact`)}</span>
+              ) : null}
             </div>
-            {asText(item.dateRange) ? <span className="compact-entry__date">{asText(item.dateRange)}</span> : null}
+            {!continuation && asText(item.dateRange) ? (
+              <span className="compact-entry__date">{asText(item.dateRange)}</span>
+            ) : null}
           </article>
         );
       }
 
       return (
         <article key={`${section.id}-${index}`} className="timeline-card">
-          <div className="timeline-card__headline">
-            <strong>{title || section.title}</strong>
-            <span>{asText(item.dateRange)}</span>
-          </div>
-          {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
-          {lines.map((line, lineIndex) => (
-            <p key={`${section.id}-${index}-${lineIndex}`}>{line}</p>
-          ))}
+          {!continuation ? (
+            <>
+              <div className="timeline-card__headline">
+                <strong>{title || section.title}</strong>
+                <span>{asText(item.dateRange)}</span>
+              </div>
+              {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
+            </>
+          ) : null}
+          {renderMarkdownBlocks(item.description, `${section.id}-${index}-description`)}
         </article>
       );
     })}
@@ -420,12 +568,14 @@ const EducationSection = ({ section }: { section: ResumeSection }) => (
     {getVisibleItems(section).map((item, index) => (
       <article key={`${section.id}-${index}`} className="education-row">
         <div>
-          <strong>
-            {[asText(item.school), asText(item.major), asText(item.degree)].filter(Boolean).join('  ')}
-          </strong>
-          {asText(item.description) ? <p>{asText(item.description)}</p> : null}
+          {!isContinuationItem(item) ? (
+            <strong>
+              {[asText(item.school), asText(item.major), asText(item.degree)].filter(Boolean).join('  ')}
+            </strong>
+          ) : null}
+          {renderMarkdownBlocks(item.description, `${section.id}-${index}-education`)}
         </div>
-        <span>{asText(item.dateRange)}</span>
+        {!isContinuationItem(item) ? <span>{asText(item.dateRange)}</span> : null}
       </article>
     ))}
   </div>
@@ -434,9 +584,8 @@ const EducationSection = ({ section }: { section: ResumeSection }) => (
 const SkillsSection = ({ section }: { section: ResumeSection }) => (
   <div className="section-content">
     {getVisibleItems(section).map((item, index) => (
-      <div key={`${section.id}-${index}`} className="skill-row">
-        <strong>{asText(item.category)}：</strong>
-        <span>{asList(item.items).join('、')}</span>
+      <div key={`${section.id}-${index}`} className="skill-block">
+        {renderMarkdownBlocks(item.content, `${section.id}-${index}-skills`)}
       </div>
     ))}
   </div>
@@ -445,9 +594,9 @@ const SkillsSection = ({ section }: { section: ResumeSection }) => (
 const SummarySection = ({ section }: { section: ResumeSection }) => (
   <div className="section-content">
     {getVisibleItems(section).map((item, index) => (
-      <p key={`${section.id}-${index}`} className="paragraph-block">
-        {asText(item.content)}
-      </p>
+      <div key={`${section.id}-${index}`} className="paragraph-block">
+        {renderMarkdownBlocks(item.content, `${section.id}-${index}-summary`)}
+      </div>
     ))}
   </div>
 );
@@ -465,56 +614,61 @@ const SectionItemView = ({
     return (
       <article className="education-row">
         <div>
-          <strong>
-            {[asText(item.school), asText(item.major), asText(item.degree)].filter(Boolean).join('  ')}
-          </strong>
-          {asText(item.description) ? <p>{asText(item.description)}</p> : null}
+          {!isContinuationItem(item) ? (
+            <strong>
+              {[asText(item.school), asText(item.major), asText(item.degree)].filter(Boolean).join('  ')}
+            </strong>
+          ) : null}
+          {renderMarkdownBlocks(item.description, `${section.id}-${index}-education`)}
         </div>
-        <span>{asText(item.dateRange)}</span>
+        {!isContinuationItem(item) ? <span>{asText(item.dateRange)}</span> : null}
       </article>
     );
   }
 
   if (section.type === 'skills') {
     return (
-      <div className="skill-row">
-        <strong>{asText(item.category)}：</strong>
-        <span>{asList(item.items).join('、')}</span>
+      <div className="skill-block">
+        {renderMarkdownBlocks(item.content, `${section.id}-${index}-skills`)}
       </div>
     );
   }
 
   if (section.type === 'summary') {
-    return <p className="paragraph-block">{asText(item.content)}</p>;
+    return <div className="paragraph-block">{renderMarkdownBlocks(item.content, `${section.id}-${index}-summary`)}</div>;
   }
 
   const title = asText(item.name) || asText(item.company);
   const subtitle = asText(item.role) || asText(item.subtitle) || asText(item.issuer);
-  const lines = getDescriptionLines(item);
-  const compactText = lines.join('；');
+  const descriptionText = getDescriptionText(item);
+  const continuation = isContinuationItem(item);
 
   if (isCompactTextSection(section.type)) {
     return (
       <article className="compact-entry" data-index={index}>
         <div className="compact-entry__main">
-          <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong>
-          {compactText ? <span>{compactText}</span> : null}
+          {!continuation ? <strong>{[title, subtitle].filter(Boolean).join(' ｜ ') || section.title}</strong> : null}
+          {descriptionText ? (
+            <span>{renderMultilineInline(descriptionText.replace(/\n+/g, '；'), `${section.id}-${index}-compact`)}</span>
+          ) : null}
         </div>
-        {asText(item.dateRange) ? <span className="compact-entry__date">{asText(item.dateRange)}</span> : null}
+        {!continuation && asText(item.dateRange) ? <span className="compact-entry__date">{asText(item.dateRange)}</span> : null}
       </article>
     );
   }
 
   return (
     <article className="timeline-card" data-index={index}>
-      <div className="timeline-card__headline">
-        <strong>{title || section.title}</strong>
-        <span>{asText(item.dateRange)}</span>
-      </div>
-      {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
-      {lines.map((line, lineIndex) => (
-        <p key={`${section.id}-${index}-${lineIndex}`}>{line}</p>
-      ))}
+      {!continuation ? (
+        <>
+          <div className="timeline-card__headline">
+            <strong>{title || section.title}</strong>
+            <span>{asText(item.dateRange)}</span>
+          </div>
+          {subtitle ? <div className="timeline-card__subline">{subtitle}</div> : null}
+        </>
+      ) : null}
+      {renderMarkdownBlocks(item.description, `${section.id}-${index}-description`)}
     </article>
   );
 };
@@ -566,6 +720,7 @@ const App = () => {
     '--resume-title-size': `${resume.settings.sectionTitleSize}px`,
     '--resume-content-size': `${resume.settings.contentFontSize}px`,
     '--resume-line-height': String(resume.settings.lineHeight),
+    '--resume-avatar-ratio': String(resume.settings.avatarAspectRatio),
     '--resume-section-gap': `${resume.settings.sectionGap}px`,
     '--resume-margin-top': `${resume.settings.pageMarginTop}px`,
     '--resume-margin-bottom': `${resume.settings.pageMarginBottom}px`,
@@ -605,6 +760,10 @@ const App = () => {
     () => resume.sections.filter((section) => section.enabled && sectionHasContent(section)),
     [resume.sections],
   );
+  const preparedSections = useMemo(
+    () => visibleSections.map(prepareSectionForPagination),
+    [visibleSections],
+  );
   const builtInSectionTypes = useMemo(
     () => Object.values(SECTION_SCHEMAS).filter((schema) => schema.type !== 'custom'),
     [],
@@ -638,7 +797,7 @@ const App = () => {
     let currentHeight = 0;
     let currentCapacity = Math.max(420, pageCapacity - headerHeight);
 
-    visibleSections.forEach((section) => {
+    preparedSections.forEach((section) => {
       const items = getVisibleItems(section);
       const titleHeight =
         (measureSectionTitleRefs.current[section.id]?.offsetHeight ?? resume.settings.sectionTitleSize + 18) +
@@ -652,8 +811,9 @@ const App = () => {
       let fragmentIndex = 0;
 
       while (itemIndex < items.length) {
+        const nextMeasureId = asText(items[itemIndex]?.__measureId) || `${section.id}-${itemIndex}`;
         const nextItemHeight =
-          measureSectionItemRefs.current[`${section.id}-${itemIndex}`]?.offsetHeight ??
+          measureSectionItemRefs.current[nextMeasureId]?.offsetHeight ??
           estimateSectionWeight({ ...section, items: [items[itemIndex]] }, resume);
 
         if (
@@ -674,8 +834,9 @@ const App = () => {
         let fragmentHeight = titleHeight;
 
         while (itemIndex < items.length) {
+          const itemMeasureId = asText(items[itemIndex]?.__measureId) || `${section.id}-${itemIndex}`;
           const itemHeight =
-            measureSectionItemRefs.current[`${section.id}-${itemIndex}`]?.offsetHeight ??
+            measureSectionItemRefs.current[itemMeasureId]?.offsetHeight ??
             estimateSectionWeight({ ...section, items: [items[itemIndex]] }, resume);
           const blockHeight =
             fragmentHeight +
@@ -736,7 +897,7 @@ const App = () => {
     }
 
     setPreviewPages(pages);
-  }, [resume, visibleSections]);
+  }, [preparedSections, resume]);
 
   const handleExport = async () => {
     if (!previewRef.current) {
@@ -1259,7 +1420,7 @@ const App = () => {
               <ResumeHeader resume={resume} />
             </div>
           ) : null}
-          {visibleSections.map((section) => (
+          {preparedSections.map((section) => (
             <div key={section.id}>
               <div
                 ref={(element) => {
@@ -1273,9 +1434,9 @@ const App = () => {
               <div className="section-content">
                 {getVisibleItems(section).map((item, index) => (
                   <div
-                    key={`${section.id}-${index}`}
+                    key={asText(item.__measureId) || `${section.id}-${index}`}
                     ref={(element) => {
-                      measureSectionItemRefs.current[`${section.id}-${index}`] = element;
+                      measureSectionItemRefs.current[asText(item.__measureId) || `${section.id}-${index}`] = element;
                     }}
                     className="measure-item"
                   >

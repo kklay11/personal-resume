@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createDefaultResume, createEmptyItem, createSection, getSectionSchema } from '../resumeConfig';
 import type { ResumeData, ResumeSection, SectionType, SectionValue } from '../types';
 
-const STORAGE_KEY = 'resume-builder:state:v2';
+const STORAGE_KEY = 'resume-builder:state:v5';
 
 const loadResume = (): ResumeData => {
   const baseResume = createDefaultResume();
@@ -247,16 +247,27 @@ export const useResumeBuilder = () => {
     new Promise<void>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        setResume((prev) =>
-          touch({
-            ...prev,
-            personalInfo: {
-              ...prev.personalInfo,
-              avatar: String(reader.result ?? ''),
-            },
-          }),
-        );
-        resolve();
+        const image = new Image();
+        image.onload = () => {
+          const nextAspectRatio = image.width > 0 && image.height > 0 ? image.width / image.height : 0.714;
+
+          setResume((prev) =>
+            touch({
+              ...prev,
+              personalInfo: {
+                ...prev.personalInfo,
+                avatar: String(reader.result ?? ''),
+              },
+              settings: {
+                ...prev.settings,
+                avatarAspectRatio: Math.min(1.2, Math.max(0.55, Number(nextAspectRatio.toFixed(3)))),
+              },
+            }),
+          );
+          resolve();
+        };
+        image.onerror = () => reject(new Error('无法读取图片尺寸'));
+        image.src = String(reader.result ?? '');
       };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);

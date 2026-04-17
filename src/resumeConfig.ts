@@ -22,7 +22,7 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'major', label: '专业', type: 'text', placeholder: '例如：软件工程' },
       { key: 'degree', label: '学历', type: 'text', placeholder: '例如：硕士' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2023.09 - 2026.07' },
-      { key: 'description', label: '补充描述', type: 'textarea', placeholder: '课程亮点、研究方向、GPA 等' },
+      { key: 'description', label: '补充描述', type: 'textarea', placeholder: '支持 **加粗**、- 列表、空行分段' },
     ],
   },
   projects: {
@@ -35,18 +35,27 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'name', label: '项目名称', type: 'text', placeholder: '例如：本地知识库与网络查询 RAG 检索器' },
       { key: 'role', label: '担任角色', type: 'text', placeholder: '例如：项目负责人 / 全栈开发' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2025.10 - 2025.11' },
-      { key: 'description', label: '项目亮点', type: 'list', placeholder: '每行一条，描述问题、方案、结果' },
+      {
+        key: 'description',
+        label: '项目亮点',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
   skills: {
     type: 'skills',
     title: '专业技能',
-    description: '按分类维护技能清单，右侧会自动格式化展示。',
-    singularLabel: '技能分类',
-    repeatable: true,
+    description: '使用单个编辑区维护技能内容，支持简单 Markdown。',
+    singularLabel: '技能内容',
+    repeatable: false,
     fields: [
-      { key: 'category', label: '分类名称', type: 'text', placeholder: '例如：编程语言 / AI 技术栈' },
-      { key: 'items', label: '技能条目', type: 'list', placeholder: '每行一条，例如：React、TypeScript、Python' },
+      {
+        key: 'content',
+        label: '技能内容',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
   awards: {
@@ -58,7 +67,7 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
     fields: [
       { key: 'name', label: '奖项名称', type: 'text', placeholder: '例如：MICCAI 2025 竞赛入围' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2025.09' },
-      { key: 'description', label: '奖项描述', type: 'textarea', placeholder: '获奖背景、排名、影响力' },
+      { key: 'description', label: '奖项描述', type: 'textarea', placeholder: '支持 **加粗**、- 列表、空行分段' },
     ],
   },
   campus: {
@@ -71,7 +80,12 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'name', label: '组织/活动', type: 'text', placeholder: '例如：研究生会 / ACM 实验室' },
       { key: 'role', label: '角色', type: 'text', placeholder: '例如：部长 / 成员' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2022.09 - 2024.06' },
-      { key: 'description', label: '经历描述', type: 'list', placeholder: '每行一条，突出组织、协作、结果' },
+      {
+        key: 'description',
+        label: '经历描述',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
   internships: {
@@ -84,7 +98,12 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'company', label: '公司名称', type: 'text', placeholder: '例如：某科技公司' },
       { key: 'role', label: '岗位名称', type: 'text', placeholder: '例如：前端开发实习生' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2024.05 - 2024.08' },
-      { key: 'description', label: '工作内容', type: 'list', placeholder: '每行一条，突出成果与量化指标' },
+      {
+        key: 'description',
+        label: '工作内容',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
   work: {
@@ -97,7 +116,12 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'company', label: '公司名称', type: 'text', placeholder: '例如：某智能科技有限公司' },
       { key: 'role', label: '岗位名称', type: 'text', placeholder: '例如：算法工程师' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2023.06 - 至今' },
-      { key: 'description', label: '工作成果', type: 'list', placeholder: '每行一条，突出业务价值' },
+      {
+        key: 'description',
+        label: '工作成果',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
   certificates: {
@@ -110,7 +134,7 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'name', label: '证书名称', type: 'text', placeholder: '例如：英语六级 / PMP / 软考中级' },
       { key: 'issuer', label: '颁发机构', type: 'text', placeholder: '例如：教育部考试中心' },
       { key: 'dateRange', label: '获得时间', type: 'text', placeholder: '例如：2024.12' },
-      { key: 'description', label: '证书说明', type: 'textarea', placeholder: '成绩、等级、有效期等' },
+      { key: 'description', label: '证书说明', type: 'textarea', placeholder: '支持 **加粗**、- 列表、空行分段' },
     ],
   },
   summary: {
@@ -119,7 +143,14 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
     description: '用 2-4 句概括你的优势与求职方向。',
     singularLabel: '个人评价',
     repeatable: false,
-    fields: [{ key: 'content', label: '评价内容', type: 'textarea', placeholder: '例如：具备扎实的工程能力和良好的沟通协作能力。' }],
+    fields: [
+      {
+        key: 'content',
+        label: '评价内容',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
+    ],
   },
   custom: {
     type: 'custom',
@@ -131,7 +162,12 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
       { key: 'name', label: '主标题', type: 'text', placeholder: '例如：论文发表 / 开源贡献' },
       { key: 'subtitle', label: '副标题', type: 'text', placeholder: '例如：作者 / 维护者 / 第一负责人' },
       { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2025.01 - 2025.12' },
-      { key: 'description', label: '详细说明', type: 'list', placeholder: '每行一条，描述成果与影响力' },
+      {
+        key: 'description',
+        label: '详细说明',
+        type: 'textarea',
+        placeholder: '支持 **加粗**、- 列表、空行分段',
+      },
     ],
   },
 };
@@ -181,6 +217,7 @@ export const createDefaultResume = (): ResumeData => ({
     accentColor: '#2563eb',
     previewMode: 'paged',
     showProfileHeader: true,
+    avatarAspectRatio: 0.714,
     profileMetaNewLine: true,
     contactMetaNewLine: true,
     sectionTitleSize: 24,
@@ -217,29 +254,24 @@ export const createDefaultResume = (): ResumeData => ({
           name: '校园活动报名平台',
           role: '产品负责人',
           dateRange: '2023.03 - 2023.08',
-          description: [
-            '负责需求调研、功能拆解和原型设计，输出完整 PRD 与交互稿。',
-            '协同前后端完成报名、审核、提醒等核心流程设计与上线。',
-            '推动首月注册用户突破 3000，显著提升活动报名效率。',
-          ],
+          description:
+            '**项目简介**：负责需求调研、功能拆解和原型设计，输出完整 PRD 与交互稿。\n\n- 协同前后端完成报名、审核、提醒等核心流程设计与上线。\n- 推动首月注册用户突破 3000，显著提升活动报名效率。',
         },
         {
           name: '内容运营数据看板',
           role: '前端开发',
           dateRange: '2024.01 - 2024.04',
-          description: [
-            '基于 React 与 ECharts 实现多维数据展示、趋势分析与筛选联动。',
-            '优化首屏加载与图表渲染性能，提升复杂数据场景下的交互体验。',
-            '支持运营团队按周追踪核心指标，减少人工汇总时间。',
-          ],
+          description:
+            '**核心工作**：基于 React 与 ECharts 实现多维数据展示、趋势分析与筛选联动。\n\n- 优化首屏加载与图表渲染性能，提升复杂数据场景下的交互体验。\n- 支持运营团队按周追踪核心指标，减少人工汇总时间。',
         },
       ],
     }),
     createSection('skills', {
       items: [
-        { category: '产品能力', items: ['需求分析', '原型设计', '用户调研', '流程梳理'] },
-        { category: '前端技术', items: ['React', 'TypeScript', 'Vite', 'ECharts'] },
-        { category: '协作工具', items: ['Figma', 'Axure', 'Jira', 'Notion'] },
+        {
+          content:
+            '**产品能力**\n- 需求分析\n- 原型设计\n- 用户调研\n- 流程梳理\n\n**前端技术**\n- React\n- TypeScript\n- Vite\n- ECharts\n\n**协作工具**\n- Figma\n- Axure\n- Jira\n- Notion',
+        },
       ],
     }),
     createSection('awards', {
@@ -257,7 +289,7 @@ export const createDefaultResume = (): ResumeData => ({
           name: '创新创业协会',
           role: '活动策划负责人',
           dateRange: '2019.09 - 2020.12',
-          description: ['策划并执行多场校园活动，统筹报名、宣传与现场协作。'],
+          description: '策划并执行多场校园活动，统筹报名、宣传与现场协作。',
         },
       ],
     }),
