@@ -211,6 +211,7 @@ const defaultPersonalInfo: PersonalInfo = {
 };
 
 export const createDefaultResume = (): ResumeData => ({
+  schemaVersion: 1,
   personalInfo: defaultPersonalInfo,
   settings: {
     template: 'modern',

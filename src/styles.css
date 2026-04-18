@@ -15,6 +15,7 @@ body {
   margin: 0;
   min-width: 1200px;
   background: #f5f7fb;
+  overflow: hidden;
 }
 
 button,
@@ -41,8 +42,9 @@ button {
   display: grid;
   grid-template-columns: minmax(520px, 56%) minmax(420px, 44%);
   gap: 16px;
-  min-height: 100vh;
+  height: 100vh;
   padding: 16px;
+  overflow: hidden;
 }
 
 .editor-panel,
@@ -93,6 +95,46 @@ button {
   flex-wrap: wrap;
 }
 
+.status-line {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-chip--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
+.status-error {
+  margin-top: 10px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.toolbar-input,
+.toolbar-select {
+  min-width: 220px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #0f172a;
+}
+
 .tab-strip,
 .config-tab-strip {
   display: flex;
@@ -122,6 +164,7 @@ button {
 .panel-scroll {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
 }
 
@@ -236,6 +279,17 @@ button {
   font-size: 12px;
 }
 
+.readonly-field {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  color: #475569;
+}
+
 .full-width {
   grid-column: 1 / -1;
 }
@@ -328,6 +382,23 @@ button {
   margin-bottom: 18px;
 }
 
+.cloud-import-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #eff6ff;
+}
+
+.cloud-import-banner p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 14px;
+}
+
 .preview-panel {
   display: flex;
   flex-direction: column;
@@ -350,6 +421,7 @@ button {
 .preview-pages {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   background: #f1f5f9;
   display: flex;
@@ -705,5 +777,9 @@ button {
   .module-config-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .cloud-import-banner {
+    flex-direction: column;
   }
 }

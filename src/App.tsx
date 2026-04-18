@@ -21,6 +21,23 @@ const RESUME_PAGE_BOTTOM_BUFFER = 16;
 const RESUME_HEADER_GAP = 20;
 const RESUME_TITLE_GAP = 12;
 const RESUME_ITEM_GAP = 12;
+const isTitleEditableSection = (section: ResumeSection) =>
+  section.type === 'projects' || Boolean(section.custom);
+const getSyncStatusLabel = (syncState: 'local' | 'syncing' | 'synced' | 'error') => {
+  if (syncState === 'syncing') {
+    return '云端保存中...';
+  }
+
+  if (syncState === 'synced') {
+    return '已同步到云端';
+  }
+
+  if (syncState === 'error') {
+    return '云端同步失败';
+  }
+
+  return '本地模式';
+};
 
 const asText = (value: SectionValue | undefined) => (typeof value === 'string' ? value : '');
 
@@ -368,6 +385,7 @@ const BasicInfoForm = ({
 const SectionForm = ({
   section,
   schema,
+  canRenameTitle,
   canMoveUp,
   canMoveDown,
   onRename,
@@ -380,6 +398,7 @@ const SectionForm = ({
 }: {
   section: ResumeSection;
   schema: SectionSchema;
+  canRenameTitle: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onRename: (value: string) => void;
@@ -397,10 +416,17 @@ const SectionForm = ({
     </div>
 
     <div className="module-toolbar">
-      <label className="field grow">
-        <span>模块标题</span>
-        <input value={section.title} onChange={(event) => onRename(event.target.value)} />
-      </label>
+      {canRenameTitle ? (
+        <label className="field grow">
+          <span>模块标题</span>
+          <input value={section.title} onChange={(event) => onRename(event.target.value)} />
+        </label>
+      ) : (
+        <div className="field grow">
+          <span>模块标题</span>
+          <div className="readonly-field">{section.title}</div>
+        </div>
+      )}
       <button type="button" className={section.enabled ? 'success-button' : 'ghost-button'} onClick={onToggle}>
         {section.enabled ? '已启用' : '已停用'}
       </button>
@@ -691,6 +717,15 @@ const App = () => {
   const {
     resume,
     enabledSectionCount,
+    resumeList,
+    currentResumeId,
+    currentUserEmail,
+    authReady,
+    cloudEnabled,
+    isAuthSubmitting,
+    syncState,
+    cloudError,
+    pendingLocalDraftImport,
     updatePersonalInfo,
     updateSetting,
     updateSectionTitle,
@@ -704,12 +739,24 @@ const App = () => {
     removeSection,
     updateAvatar,
     removeAvatar,
+    signInWithPassword,
+    signUpWithPassword,
+    signOut,
+    selectResume,
+    createResumeRecord,
+    deleteCurrentResume,
+    importLocalDraftToCloud,
+    dismissLocalDraftImport,
   } = useResumeBuilder();
   const [activeTab, setActiveTab] = useState<ActiveTab>('basic');
   const [configOpen, setConfigOpen] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('global');
   const [isExporting, setIsExporting] = useState(false);
+  const [authEmailInput, setAuthEmailInput] = useState('');
+  const [authPasswordInput, setAuthPasswordInput] = useState('');
+  const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [previewPages, setPreviewPages] = useState<PreviewPage[]>([]);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const measureHeaderRef = useRef<HTMLDivElement>(null);
   const measureSectionTitleRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -751,6 +798,53 @@ const App = () => {
       setConfigTab('global');
     }
   }, [configTab, resume.sections]);
+
+  useEffect(() => {
+    const bindIndependentWheel = (element: HTMLDivElement | null) => {
+      if (!element) {
+        return () => undefined;
+      }
+
+      const handleWheel = (event: WheelEvent) => {
+        if (isExporting) {
+          return;
+        }
+
+        const { deltaY } = event;
+
+        if (deltaY === 0) {
+          return;
+        }
+
+        const maxScrollTop = element.scrollHeight - element.clientHeight;
+
+        if (maxScrollTop <= 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const nextScrollTop = clampNumber(element.scrollTop + deltaY, 0, maxScrollTop);
+        element.scrollTop = nextScrollTop;
+      };
+
+      element.addEventListener('wheel', handleWheel, { passive: false });
+      return () => {
+        element.removeEventListener('wheel', handleWheel);
+      };
+    };
+
+    const cleanupEditor = bindIndependentWheel(editorScrollRef.current);
+    const cleanupPreview = bindIndependentWheel(previewRef.current);
+
+    return () => {
+      cleanupEditor();
+      cleanupPreview();
+    };
+  }, [isExporting]);
 
   const activeSection = useMemo(
     () => resume.sections.find((section) => section.id === activeTab),
@@ -939,6 +1033,32 @@ const App = () => {
     updateSetting(field, value);
   };
 
+  const handleAuthSubmit = async () => {
+    if (!authEmailInput.trim()) {
+      window.alert('请输入邮箱地址。');
+      return;
+    }
+
+    if (!authPasswordInput.trim()) {
+      window.alert('请输入密码。');
+      return;
+    }
+
+    try {
+      if (authMode === 'sign-up') {
+        await signUpWithPassword(authEmailInput.trim(), authPasswordInput);
+        window.alert('注册成功，请直接使用该邮箱和密码登录。');
+        setAuthMode('sign-in');
+      } else {
+        await signInWithPassword(authEmailInput.trim(), authPasswordInput);
+      }
+
+      setAuthPasswordInput('');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : authMode === 'sign-up' ? '注册失败。' : '登录失败。');
+    }
+  };
+
   return (
     <div className="app-shell" style={appStyle}>
       <aside className="editor-panel">
@@ -946,8 +1066,82 @@ const App = () => {
           <div>
             <h1>简历编辑器</h1>
             <p>左侧模块化编辑，右侧实时分页预览与导出 PDF。</p>
+            <div className="status-line">
+              <span className={syncState === 'error' ? 'status-chip status-chip--error' : 'status-chip'}>
+                {getSyncStatusLabel(syncState)}
+              </span>
+              {cloudEnabled ? <span className="status-chip">{currentUserEmail ? currentUserEmail : '未登录'}</span> : null}
+            </div>
+            {cloudError ? <div className="status-error">{cloudError}</div> : null}
           </div>
           <div className="header-actions">
+            {cloudEnabled ? (
+              currentUserEmail ? (
+                <>
+                  <select
+                    value={currentResumeId ?? ''}
+                    onChange={(event) => void selectResume(event.target.value)}
+                    className="toolbar-select"
+                  >
+                    {resumeList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" className="ghost-button" onClick={() => void createResumeRecord()}>
+                    新建云端简历
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => void deleteCurrentResume()}
+                    disabled={!currentResumeId || resumeList.length <= 1}
+                  >
+                    删除当前简历
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => void signOut()}>
+                    退出登录
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    className="toolbar-input"
+                    value={authEmailInput}
+                    placeholder="输入邮箱"
+                    onChange={(event) => setAuthEmailInput(event.target.value)}
+                    disabled={!authReady || isAuthSubmitting}
+                  />
+                  <input
+                    type="password"
+                    className="toolbar-input"
+                    value={authPasswordInput}
+                    placeholder="输入密码"
+                    onChange={(event) => setAuthPasswordInput(event.target.value)}
+                    disabled={!authReady || isAuthSubmitting}
+                  />
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setAuthMode((prev) => (prev === 'sign-in' ? 'sign-up' : 'sign-in'))}
+                    disabled={!authReady || isAuthSubmitting}
+                  >
+                    {authMode === 'sign-in' ? '去注册' : '去登录'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => void handleAuthSubmit()}
+                    disabled={!authReady || isAuthSubmitting}
+                  >
+                    {isAuthSubmitting ? '提交中...' : authMode === 'sign-in' ? '邮箱登录' : '注册账号'}
+                  </button>
+                </>
+              )
+            ) : (
+              <span className="status-chip">未配置 Supabase，当前仅本地保存</span>
+            )}
             <button
               type="button"
               className="ghost-button"
@@ -991,7 +1185,24 @@ const App = () => {
           ))}
         </div>
 
-        <div className="panel-scroll">
+        <div ref={editorScrollRef} className="panel-scroll">
+          {pendingLocalDraftImport ? (
+            <div className="cloud-import-banner">
+              <div>
+                <strong>检测到本地未上传草稿</strong>
+                <p>登录后可以先把本地草稿导入云端，再继续编辑。</p>
+              </div>
+              <div className="action-row">
+                <button type="button" className="primary-button" onClick={() => void importLocalDraftToCloud()}>
+                  导入到云端
+                </button>
+                <button type="button" className="ghost-button" onClick={() => void dismissLocalDraftImport()}>
+                  暂不导入
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {activeTab === 'basic' ? (
             <BasicInfoForm
               resume={resume}
@@ -1003,6 +1214,7 @@ const App = () => {
             <SectionForm
               section={activeSection}
               schema={getSectionSchema(activeSection.type)}
+              canRenameTitle={isTitleEditableSection(activeSection)}
               canMoveUp={resume.sections[0]?.id !== activeSection.id}
               canMoveDown={resume.sections[resume.sections.length - 1]?.id !== activeSection.id}
               onRename={(value) => updateSectionTitle(activeSection.id, value)}
@@ -1359,16 +1571,23 @@ const App = () => {
                 <div className="config-group">
                   <div className="section-intro">
                     <h2>{configSection.title}</h2>
-                    <p>调整当前模块标题、显隐与排序。</p>
+                    <p>调整当前模块显隐与排序。</p>
                   </div>
 
-                  <label className="field">
-                    <span>模块标题</span>
-                    <input
-                      value={configSection.title}
-                      onChange={(event) => updateSectionTitle(configSection.id, event.target.value)}
-                    />
-                  </label>
+                  {isTitleEditableSection(configSection) ? (
+                    <label className="field">
+                      <span>模块标题</span>
+                      <input
+                        value={configSection.title}
+                        onChange={(event) => updateSectionTitle(configSection.id, event.target.value)}
+                      />
+                    </label>
+                  ) : (
+                    <div className="field">
+                      <span>模块标题</span>
+                      <div className="readonly-field">{configSection.title}</div>
+                    </div>
+                  )}
 
                   <label className="switch-card">
                     <div>

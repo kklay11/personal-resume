@@ -73,8 +73,15 @@ export interface ResumeSettings {
 }
 
 export interface ResumeData {
+  schemaVersion: number;
   personalInfo: PersonalInfo;
   sections: ResumeSection[];
   settings: ResumeSettings;
+  updatedAt: string;
+}
+
+export interface ResumeSummary {
+  id: string;
+  title: string;
   updatedAt: string;
 }

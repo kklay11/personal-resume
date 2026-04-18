@@ -1,10 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createDefaultResume, createEmptyItem, createSection, getSectionSchema } from '../resumeConfig';
-import type { ResumeData, ResumeSection, SectionType, SectionValue } from '../types';
+import {
+  createResume as createCloudResume,
+  deleteResume as deleteCloudResume,
+  getCurrentSession,
+  getCurrentUser,
+  getResume,
+  listResumes,
+  signInWithPassword as signInWithPasswordRequest,
+  signOut as signOutRequest,
+  signUpWithPassword as signUpWithPasswordRequest,
+  updateResume as updateCloudResume,
+} from '../lib/resumeStore';
+import { CURRENT_RESUME_SCHEMA_VERSION, deriveResumeTitle, normalizeResumeData } from '../lib/resumeData';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import type { ResumeData, ResumeSection, ResumeSummary, SectionType, SectionValue } from '../types';
 
-const STORAGE_KEY = 'resume-builder:state:v5';
+const STORAGE_KEY = 'resume-builder:state:v6';
+const ACTIVE_RESUME_ID_KEY = 'resume-builder:active-resume-id:v1';
+const SKIP_IMPORT_KEY_PREFIX = 'resume-builder:skip-import:';
 
-const loadResume = (): ResumeData => {
+type SyncState = 'local' | 'syncing' | 'synced' | 'error';
+
+const loadLocalResume = (): ResumeData => {
   const baseResume = createDefaultResume();
 
   if (typeof window === 'undefined') {
@@ -18,26 +36,23 @@ const loadResume = (): ResumeData => {
   }
 
   try {
-    const parsed = JSON.parse(raw) as ResumeData;
-    return {
-      ...baseResume,
-      ...parsed,
-      personalInfo: {
-        ...baseResume.personalInfo,
-        ...parsed.personalInfo,
-      },
-      settings: {
-        ...baseResume.settings,
-        ...parsed.settings,
-      },
-    };
+    return normalizeResumeData(JSON.parse(raw));
   } catch {
     return baseResume;
   }
 };
 
+const hasLocalDraft = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean(window.localStorage.getItem(STORAGE_KEY));
+};
+
 const touch = (resume: ResumeData): ResumeData => ({
   ...resume,
+  schemaVersion: CURRENT_RESUME_SCHEMA_VERSION,
   updatedAt: new Date().toISOString(),
 });
 
@@ -48,11 +63,198 @@ const updateSection = (
 ) => sections.map((section) => (section.id === sectionId ? updater(section) : section));
 
 export const useResumeBuilder = () => {
-  const [resume, setResume] = useState<ResumeData>(loadResume);
+  const [resume, setResume] = useState<ResumeData>(() => loadLocalResume());
+  const [resumeList, setResumeList] = useState<ResumeSummary[]>([]);
+  const [currentResumeId, setCurrentResumeId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [syncState, setSyncState] = useState<SyncState>('local');
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [pendingLocalDraftImport, setPendingLocalDraftImport] = useState(false);
+  const hydrateTokenRef = useRef(0);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resume));
   }, [resume]);
+
+  useEffect(() => {
+    if (!currentResumeId) {
+      window.localStorage.removeItem(ACTIVE_RESUME_ID_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(ACTIVE_RESUME_ID_KEY, currentResumeId);
+  }, [currentResumeId]);
+
+  const refreshResumeList = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      return [];
+    }
+
+    const summaries = await listResumes();
+    setResumeList(summaries);
+    return summaries;
+  }, []);
+
+  const loadCloudResume = useCallback(async (resumeId: string) => {
+    const cloudResume = await getResume(resumeId);
+
+    if (!cloudResume) {
+      throw new Error('未找到云端简历记录。');
+    }
+
+    setResume(normalizeResumeData(cloudResume.content_json));
+    setCurrentResumeId(cloudResume.id);
+    return cloudResume;
+  }, []);
+
+  const createAndSelectResume = useCallback(
+    async (initialData?: ResumeData) => {
+      const nextResume = normalizeResumeData(initialData ?? createDefaultResume());
+      const summary = await createCloudResume(nextResume, deriveResumeTitle(nextResume));
+      const nextList = await refreshResumeList();
+      setResume(nextResume);
+      setCurrentResumeId(summary.id);
+      setResumeList(nextList);
+      setSyncState('synced');
+      return summary;
+    },
+    [refreshResumeList],
+  );
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthReady(true);
+      setSyncState('local');
+      return;
+    }
+
+    let mounted = true;
+
+    const bootstrap = async () => {
+      try {
+        const [session, user] = await Promise.all([getCurrentSession(), getCurrentUser()]);
+
+        if (!mounted) {
+          return;
+        }
+
+        setCurrentUserEmail(user?.email ?? session?.user?.email ?? null);
+      } finally {
+        if (mounted) {
+          setAuthReady(true);
+        }
+      }
+    };
+
+    void bootstrap();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserEmail(session?.user?.email ?? null);
+      setAuthReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    if (!isSupabaseConfigured || !currentUserEmail) {
+      setResumeList([]);
+      setCurrentResumeId(null);
+      setPendingLocalDraftImport(false);
+      setSyncState('local');
+      setCloudError(null);
+      setResume(loadLocalResume());
+      return;
+    }
+
+    const currentToken = ++hydrateTokenRef.current;
+
+    const hydrate = async () => {
+      try {
+        setCloudError(null);
+        const summaries = await refreshResumeList();
+
+        if (hydrateTokenRef.current !== currentToken) {
+          return;
+        }
+
+        const skipImportKey = `${SKIP_IMPORT_KEY_PREFIX}${currentUserEmail}`;
+        const shouldSkipImport = window.localStorage.getItem(skipImportKey) === '1';
+
+        if (summaries.length === 0 && hasLocalDraft() && !shouldSkipImport) {
+          setPendingLocalDraftImport(true);
+          setCurrentResumeId(null);
+          setSyncState('local');
+          setResume(loadLocalResume());
+          return;
+        }
+
+        setPendingLocalDraftImport(false);
+
+        if (summaries.length === 0) {
+          await createAndSelectResume();
+          return;
+        }
+
+        const preferredId = window.localStorage.getItem(ACTIVE_RESUME_ID_KEY);
+        const targetResume = summaries.find((item) => item.id === preferredId) ?? summaries[0];
+
+        if (!targetResume) {
+          return;
+        }
+
+        await loadCloudResume(targetResume.id);
+        setSyncState('synced');
+      } catch (error) {
+        setCloudError(error instanceof Error ? error.message : '云端数据初始化失败。');
+        setSyncState('error');
+      }
+    };
+
+    void hydrate();
+  }, [authReady, createAndSelectResume, currentUserEmail, loadCloudResume, refreshResumeList]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !currentUserEmail || !currentResumeId || !authReady) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setSyncState('syncing');
+        setCloudError(null);
+        await updateCloudResume(currentResumeId, touch(resume), deriveResumeTitle(resume), CURRENT_RESUME_SCHEMA_VERSION);
+        setResumeList((prev) =>
+          prev
+            .map((item) =>
+              item.id === currentResumeId
+                ? { ...item, title: deriveResumeTitle(resume), updatedAt: new Date().toISOString() }
+                : item,
+            )
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+        );
+        setSyncState('synced');
+      } catch (error) {
+        setCloudError(error instanceof Error ? error.message : '云端保存失败。');
+        setSyncState('error');
+      }
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [authReady, currentResumeId, currentUserEmail, resume]);
 
   const enabledSectionCount = useMemo(
     () => resume.sections.filter((section) => section.enabled).length,
@@ -223,9 +425,7 @@ export const useResumeBuilder = () => {
   };
 
   const addPresetSection = (type: SectionType) => {
-    const existingSection = resume.sections.find(
-      (section) => section.type === type && !section.custom,
-    );
+    const existingSection = resume.sections.find((section) => section.type === type && !section.custom);
 
     if (existingSection) {
       return existingSection.id;
@@ -277,9 +477,101 @@ export const useResumeBuilder = () => {
     updatePersonalInfo('avatar', '');
   };
 
+  const signInWithPassword = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase 未配置。');
+    }
+
+    setIsAuthSubmitting(true);
+    try {
+      await signInWithPasswordRequest(email, password);
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const signUpWithPassword = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase 未配置。');
+    }
+
+    setIsAuthSubmitting(true);
+    try {
+      await signUpWithPasswordRequest(email, password);
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const signOut = async () => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    await signOutRequest();
+  };
+
+  const selectResume = async (resumeId: string) => {
+    await loadCloudResume(resumeId);
+  };
+
+  const importLocalDraftToCloud = async () => {
+    if (!currentUserEmail) {
+      return;
+    }
+
+    setPendingLocalDraftImport(false);
+    await createAndSelectResume(loadLocalResume());
+  };
+
+  const dismissLocalDraftImport = async () => {
+    if (!currentUserEmail) {
+      return;
+    }
+
+    window.localStorage.setItem(`${SKIP_IMPORT_KEY_PREFIX}${currentUserEmail}`, '1');
+    setPendingLocalDraftImport(false);
+
+    if (resumeList.length === 0) {
+      await createAndSelectResume();
+      return;
+    }
+
+    await loadCloudResume(resumeList[0].id);
+  };
+
+  const createResumeRecord = async () => {
+    await createAndSelectResume();
+  };
+
+  const deleteCurrentResume = async () => {
+    if (!currentResumeId) {
+      return;
+    }
+
+    await deleteCloudResume(currentResumeId);
+    const nextList = await refreshResumeList();
+
+    if (nextList.length === 0) {
+      await createAndSelectResume();
+      return;
+    }
+
+    await loadCloudResume(nextList[0].id);
+  };
+
   return {
     resume,
     enabledSectionCount,
+    resumeList,
+    currentResumeId,
+    currentUserEmail,
+    authReady,
+    cloudEnabled: isSupabaseConfigured,
+    isAuthSubmitting,
+    syncState,
+    cloudError,
+    pendingLocalDraftImport,
     updatePersonalInfo,
     updateSetting,
     updateSectionTitle,
@@ -293,5 +585,13 @@ export const useResumeBuilder = () => {
     addPresetSection,
     updateAvatar,
     removeAvatar,
+    signInWithPassword,
+    signUpWithPassword,
+    signOut,
+    selectResume,
+    createResumeRecord,
+    deleteCurrentResume,
+    importLocalDraftToCloud,
+    dismissLocalDraftImport,
   };
 };

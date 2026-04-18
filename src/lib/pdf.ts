@@ -13,6 +13,32 @@ const collectDocumentStyles = () =>
     .map((node) => node.outerHTML)
     .join('\n');
 
+const collectResumeCssVariables = (container: HTMLElement) => {
+  const source = container.closest('.app-shell');
+
+  if (!source) {
+    return '';
+  }
+
+  const computedStyle = window.getComputedStyle(source);
+  const variableNames = [
+    '--accent-color',
+    '--resume-title-size',
+    '--resume-content-size',
+    '--resume-line-height',
+    '--resume-avatar-ratio',
+    '--resume-section-gap',
+    '--resume-margin-top',
+    '--resume-margin-bottom',
+    '--resume-margin-left',
+    '--resume-margin-right',
+  ];
+
+  return variableNames
+    .map((name) => `${name}: ${computedStyle.getPropertyValue(name).trim()};`)
+    .join(' ');
+};
+
 const PRINT_CSS = `
   <style>
     @page {
@@ -98,7 +124,7 @@ export const exportResumePdf = async (container: HTMLElement, fileName: string) 
     throw new Error('无法创建打印上下文，请稍后重试。');
   }
 
-  const wrapperStyle = container.closest('.app-shell')?.getAttribute('style') ?? '';
+  const wrapperStyle = collectResumeCssVariables(container);
   const styleMarkup = collectDocumentStyles();
   const title = sanitizeFileName(fileName);
 
