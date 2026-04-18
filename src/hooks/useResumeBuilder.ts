@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createDefaultResume, createEmptyItem, createSection, getSectionSchema } from '../resumeConfig';
+import { createBlankResume, createDefaultResume, createEmptyItem, createSection, getSectionSchema } from '../resumeConfig';
 import {
   createResume as createCloudResume,
   deleteResume as deleteCloudResume,
@@ -42,6 +42,17 @@ const loadLocalResume = (): ResumeData => {
   }
 };
 
+const resetToBlankResume = () => {
+  const blankResume = createBlankResume();
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blankResume));
+    window.localStorage.removeItem(ACTIVE_RESUME_ID_KEY);
+  }
+
+  return blankResume;
+};
+
 const hasLocalDraft = () => {
   if (typeof window === 'undefined') {
     return false;
@@ -73,6 +84,7 @@ export const useResumeBuilder = () => {
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [pendingLocalDraftImport, setPendingLocalDraftImport] = useState(false);
   const hydrateTokenRef = useRef(0);
+  const logoutResetRef = useRef(false);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resume));
@@ -111,7 +123,7 @@ export const useResumeBuilder = () => {
 
   const createAndSelectResume = useCallback(
     async (initialData?: ResumeData) => {
-      const nextResume = normalizeResumeData(initialData ?? createDefaultResume());
+      const nextResume = normalizeResumeData(initialData ?? createBlankResume());
       const summary = await createCloudResume(nextResume, deriveResumeTitle(nextResume));
       const nextList = await refreshResumeList();
       setResume(nextResume);
@@ -174,7 +186,14 @@ export const useResumeBuilder = () => {
       setPendingLocalDraftImport(false);
       setSyncState('local');
       setCloudError(null);
-      setResume(loadLocalResume());
+
+      if (logoutResetRef.current) {
+        logoutResetRef.current = false;
+        setResume(resetToBlankResume());
+      } else {
+        setResume(loadLocalResume());
+      }
+
       return;
     }
 
@@ -508,6 +527,13 @@ export const useResumeBuilder = () => {
       return;
     }
 
+    logoutResetRef.current = true;
+    setResume(resetToBlankResume());
+    setResumeList([]);
+    setCurrentResumeId(null);
+    setPendingLocalDraftImport(false);
+    setCloudError(null);
+    setSyncState('local');
     await signOutRequest();
   };
 

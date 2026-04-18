@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, WheelEvent as ReactWheelEvent } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { exportResumePdf } from './lib/pdf';
 import { getSectionSchema, SECTION_SCHEMAS } from './resumeConfig';
@@ -21,6 +21,8 @@ const RESUME_PAGE_BOTTOM_BUFFER = 16;
 const RESUME_HEADER_GAP = 20;
 const RESUME_TITLE_GAP = 12;
 const RESUME_ITEM_GAP = 12;
+const RESUME_PAGE_WIDTH = 794;
+const RESUME_PAGE_HEIGHT = 1123;
 const isTitleEditableSection = (section: ResumeSection) =>
   section.type === 'projects' || Boolean(section.custom);
 const getSyncStatusLabel = (syncState: 'local' | 'syncing' | 'synced' | 'error') => {
@@ -51,6 +53,25 @@ const getVisibleItems = (section: ResumeSection) => section.items.filter(itemHas
 const sectionHasContent = (section: ResumeSection) => section.items.some(itemHasContent);
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const handleScrollableWheel = (event: ReactWheelEvent<HTMLElement>) => {
+  const element = event.currentTarget;
+  const maxScrollTop = element.scrollHeight - element.clientHeight;
+
+  if (maxScrollTop <= 0) {
+    return;
+  }
+
+  const nextScrollTop = clampNumber(element.scrollTop + event.deltaY, 0, maxScrollTop);
+
+  if (nextScrollTop === element.scrollTop) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  element.scrollTop = nextScrollTop;
+};
 
 const estimateSectionWeight = (section: ResumeSection, resume: ResumeData) => {
   const titleWeight = resume.settings.sectionTitleSize + 30;
@@ -365,6 +386,7 @@ const BasicInfoForm = ({
                 value={resume.personalInfo[field.key]}
                 placeholder={field.placeholder}
                 onChange={(event) => onChange(field.key, event.target.value)}
+                onWheelCapture={handleScrollableWheel}
               />
             ) : (
               <input
@@ -471,6 +493,7 @@ const SectionForm = ({
                         value={asText(value)}
                         placeholder={field.placeholder}
                         onChange={(event) => onUpdateField(itemIndex, field.key, event.target.value)}
+                        onWheelCapture={handleScrollableWheel}
                       />
                       <small className="field-hint">支持 **加粗**、- 列表、空行分段。</small>
                     </>
@@ -479,6 +502,7 @@ const SectionForm = ({
                       value={normalizeMultilineValue(value)}
                       placeholder={field.placeholder}
                       onChange={(event) => onUpdateField(itemIndex, field.key, event.target.value)}
+                      onWheelCapture={handleScrollableWheel}
                     />
                   ) : (
                     <input
@@ -554,6 +578,14 @@ const GenericExperience = ({ section }: { section: ResumeSection }) => (
       const title = asText(item.name) || asText(item.company);
       const subtitle = asText(item.role) || asText(item.subtitle) || asText(item.issuer);
       const descriptionText = getDescriptionText(item);
+
+      if (section.type === 'awards') {
+        return (
+          <article key={`${section.id}-${index}`} className="timeline-card timeline-card--plain">
+            {renderMarkdownBlocks(item.description, `${section.id}-${index}-description`)}
+          </article>
+        );
+      }
 
       if (isCompactTextSection(section.type)) {
         return (
@@ -669,6 +701,10 @@ const SectionItemView = ({
   const descriptionText = getDescriptionText(item);
   const continuation = isContinuationItem(item);
 
+  if (section.type === 'awards') {
+    return <article className="timeline-card timeline-card--plain">{renderMarkdownBlocks(item.description, `${section.id}-${index}-description`)}</article>;
+  }
+
   if (isCompactTextSection(section.type)) {
     return (
       <article className="compact-entry" data-index={index}>
@@ -711,6 +747,90 @@ const ResumeSectionBlock = ({ section, accentColor }: { section: ResumeSection; 
       <GenericExperience section={section} />
     ) : null}
   </section>
+);
+
+const AuthScreen = ({
+  authReady,
+  authMode,
+  email,
+  password,
+  isSubmitting,
+  cloudEnabled,
+  onEmailChange,
+  onPasswordChange,
+  onModeToggle,
+  onSubmit,
+}: {
+  authReady: boolean;
+  authMode: 'sign-in' | 'sign-up';
+  email: string;
+  password: string;
+  isSubmitting: boolean;
+  cloudEnabled: boolean;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onModeToggle: () => void;
+  onSubmit: () => void;
+}) => (
+  <div className="auth-shell">
+    <div className="auth-card">
+      <div className="auth-card__hero">
+        <div className="auth-badge">Resume Builder</div>
+        <h1>登录后继续打磨你的简历</h1>
+        <p>云端自动保存、多份简历切换、高清 PDF 导出都在这里。</p>
+        <div className="auth-preview">
+          <div className="auth-preview__paper">
+            <div className="auth-preview__title" />
+            <div className="auth-preview__line auth-preview__line--short" />
+            <div className="auth-preview__line" />
+            <div className="auth-preview__line" />
+            <div className="auth-preview__section" />
+            <div className="auth-preview__line" />
+            <div className="auth-preview__line auth-preview__line--short" />
+          </div>
+        </div>
+      </div>
+
+      <div className="auth-card__form">
+        <div className="section-intro">
+          <h2>{authMode === 'sign-in' ? '欢迎回来' : '创建账号'}</h2>
+          <p>{authMode === 'sign-in' ? '使用邮箱和密码登录，继续编辑云端简历。' : '注册后即可开始保存和管理你的多份简历。'}</p>
+        </div>
+
+        {cloudEnabled ? null : <div className="status-chip">未配置 Supabase，当前仅支持本地保存</div>}
+
+        <label className="field">
+          <span>邮箱</span>
+          <input
+            value={email}
+            placeholder="name@example.com"
+            onChange={(event) => onEmailChange(event.target.value)}
+            disabled={!authReady || isSubmitting}
+          />
+        </label>
+
+        <label className="field">
+          <span>密码</span>
+          <input
+            type="password"
+            value={password}
+            placeholder="至少 6 位"
+            onChange={(event) => onPasswordChange(event.target.value)}
+            disabled={!authReady || isSubmitting}
+          />
+        </label>
+
+        <div className="auth-card__actions">
+          <button type="button" className="primary-button" onClick={onSubmit} disabled={!authReady || isSubmitting || !cloudEnabled}>
+            {isSubmitting ? '提交中...' : authMode === 'sign-in' ? '登录并继续' : '注册账号'}
+          </button>
+          <button type="button" className="ghost-button" onClick={onModeToggle} disabled={!authReady || isSubmitting}>
+            {authMode === 'sign-in' ? '没有账号？去注册' : '已有账号？去登录'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 );
 
 const App = () => {
@@ -756,7 +876,9 @@ const App = () => {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [previewPages, setPreviewPages] = useState<PreviewPage[]>([]);
+  const [previewScale, setPreviewScale] = useState(1);
   const editorScrollRef = useRef<HTMLDivElement>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const measureHeaderRef = useRef<HTMLDivElement>(null);
   const measureSectionTitleRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -798,6 +920,28 @@ const App = () => {
       setConfigTab('global');
     }
   }, [configTab, resume.sections]);
+
+  useLayoutEffect(() => {
+    const viewport = previewViewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const updateScale = () => {
+      const nextScale = clampNumber((viewport.clientWidth - 24) / RESUME_PAGE_WIDTH, 0.42, 1);
+      setPreviewScale(Number(nextScale.toFixed(3)));
+    };
+
+    updateScale();
+
+    const observer = new ResizeObserver(() => updateScale());
+    observer.observe(viewport);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const bindIndependentWheel = (element: HTMLDivElement | null) => {
@@ -1059,6 +1203,25 @@ const App = () => {
     }
   };
 
+  const isAuthScreenVisible = cloudEnabled && !currentUserEmail;
+
+  if (isAuthScreenVisible) {
+    return (
+      <AuthScreen
+        authReady={authReady}
+        authMode={authMode}
+        email={authEmailInput}
+        password={authPasswordInput}
+        isSubmitting={isAuthSubmitting}
+        cloudEnabled={cloudEnabled}
+        onEmailChange={setAuthEmailInput}
+        onPasswordChange={setAuthPasswordInput}
+        onModeToggle={() => setAuthMode((prev) => (prev === 'sign-in' ? 'sign-up' : 'sign-in'))}
+        onSubmit={() => void handleAuthSubmit()}
+      />
+    );
+  }
+
   return (
     <div className="app-shell" style={appStyle}>
       <aside className="editor-panel">
@@ -1076,69 +1239,33 @@ const App = () => {
           </div>
           <div className="header-actions">
             {cloudEnabled ? (
-              currentUserEmail ? (
-                <>
-                  <select
-                    value={currentResumeId ?? ''}
-                    onChange={(event) => void selectResume(event.target.value)}
-                    className="toolbar-select"
-                  >
-                    {resumeList.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.title}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" className="ghost-button" onClick={() => void createResumeRecord()}>
-                    新建云端简历
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => void deleteCurrentResume()}
-                    disabled={!currentResumeId || resumeList.length <= 1}
-                  >
-                    删除当前简历
-                  </button>
-                  <button type="button" className="ghost-button" onClick={() => void signOut()}>
-                    退出登录
-                  </button>
-                </>
-              ) : (
-                <>
-                  <input
-                    className="toolbar-input"
-                    value={authEmailInput}
-                    placeholder="输入邮箱"
-                    onChange={(event) => setAuthEmailInput(event.target.value)}
-                    disabled={!authReady || isAuthSubmitting}
-                  />
-                  <input
-                    type="password"
-                    className="toolbar-input"
-                    value={authPasswordInput}
-                    placeholder="输入密码"
-                    onChange={(event) => setAuthPasswordInput(event.target.value)}
-                    disabled={!authReady || isAuthSubmitting}
-                  />
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => setAuthMode((prev) => (prev === 'sign-in' ? 'sign-up' : 'sign-in'))}
-                    disabled={!authReady || isAuthSubmitting}
-                  >
-                    {authMode === 'sign-in' ? '去注册' : '去登录'}
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => void handleAuthSubmit()}
-                    disabled={!authReady || isAuthSubmitting}
-                  >
-                    {isAuthSubmitting ? '提交中...' : authMode === 'sign-in' ? '邮箱登录' : '注册账号'}
-                  </button>
-                </>
-              )
+              <>
+                <select
+                  value={currentResumeId ?? ''}
+                  onChange={(event) => void selectResume(event.target.value)}
+                  className="toolbar-select"
+                >
+                  {resumeList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="ghost-button" onClick={() => void createResumeRecord()}>
+                  新建云端简历
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void deleteCurrentResume()}
+                  disabled={!currentResumeId || resumeList.length <= 1}
+                >
+                  删除当前简历
+                </button>
+                <button type="button" className="ghost-button" onClick={() => void signOut()}>
+                  退出登录
+                </button>
+              </>
             ) : (
               <span className="status-chip">未配置 Supabase，当前仅本地保存</span>
             )}
@@ -1240,25 +1367,45 @@ const App = () => {
           <div className="preview-mode-badge">分页视图</div>
         </div>
 
-        <div ref={previewRef} className={isExporting ? 'preview-pages exporting' : 'preview-pages'}>
-          {previewPages.map((page, index) => (
-            <div key={page.id} className="resume-paper">
-              {page.showHeader ? <ResumeHeader resume={resume} /> : null}
-              {page.sections.length > 0 ? (
-                page.sections.map((section) => (
-                  <ResumeSectionBlock
-                    key={`${page.id}-${section.id}`}
-                    section={section}
-                    accentColor={resume.settings.accentColor}
-                  />
-                ))
-              ) : index === 0 ? (
-                <div className="empty-preview">
-                  启用并填写左侧模块后，这里会实时生成可导出的简历内容。
+        <div ref={previewViewportRef} className="preview-viewport">
+          <div ref={previewRef} className={isExporting ? 'preview-pages exporting' : 'preview-pages'}>
+            {previewPages.map((page, index) => (
+              <div
+                key={page.id}
+                className="preview-page-shell"
+                style={{
+                  width: `${RESUME_PAGE_WIDTH * previewScale}px`,
+                  minHeight: `${RESUME_PAGE_HEIGHT * previewScale}px`,
+                }}
+              >
+                <div
+                  className="preview-page-shell__inner"
+                  style={{
+                    width: `${RESUME_PAGE_WIDTH}px`,
+                    minHeight: `${RESUME_PAGE_HEIGHT}px`,
+                    transform: isExporting ? 'none' : `scale(${previewScale})`,
+                  }}
+                >
+                  <div className="resume-paper">
+                    {page.showHeader ? <ResumeHeader resume={resume} /> : null}
+                    {page.sections.length > 0 ? (
+                      page.sections.map((section) => (
+                        <ResumeSectionBlock
+                          key={`${page.id}-${section.id}`}
+                          section={section}
+                          accentColor={resume.settings.accentColor}
+                        />
+                      ))
+                    ) : index === 0 ? (
+                      <div className="empty-preview">
+                        启用并填写左侧模块后，这里会实时生成可导出的简历内容。
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="preview-actions">

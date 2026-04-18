@@ -61,12 +61,10 @@ export const SECTION_SCHEMAS: Record<SectionType, SectionSchema> = {
   awards: {
     type: 'awards',
     title: '获奖经历',
-    description: '突出奖项名称、时间和含金量。',
-    singularLabel: '奖项',
+    description: '使用简洁描述突出获奖亮点与含金量。',
+    singularLabel: '奖项描述',
     repeatable: true,
     fields: [
-      { key: 'name', label: '奖项名称', type: 'text', placeholder: '例如：MICCAI 2025 竞赛入围' },
-      { key: 'dateRange', label: '时间段', type: 'text', placeholder: '例如：2025.09' },
       { key: 'description', label: '奖项描述', type: 'textarea', placeholder: '支持 **加粗**、- 列表、空行分段' },
     ],
   },
@@ -210,26 +208,41 @@ const defaultPersonalInfo: PersonalInfo = {
   avatar: '',
 };
 
+const blankPersonalInfo: PersonalInfo = {
+  fullName: '',
+  phone: '',
+  email: '',
+  gender: '',
+  age: '',
+  city: '',
+  blog: '',
+  headline: '',
+  targetRole: '',
+  avatar: '',
+};
+
+const createDefaultSettings = () => ({
+  template: 'modern' as const,
+  accentColor: '#2563eb',
+  previewMode: 'paged' as const,
+  showProfileHeader: true,
+  avatarAspectRatio: 0.714,
+  profileMetaNewLine: true,
+  contactMetaNewLine: true,
+  sectionTitleSize: 24,
+  contentFontSize: 15,
+  sectionGap: 16,
+  lineHeight: 1.5,
+  pageMarginTop: 32,
+  pageMarginBottom: 32,
+  pageMarginLeft: 36,
+  pageMarginRight: 36,
+});
+
 export const createDefaultResume = (): ResumeData => ({
   schemaVersion: 1,
   personalInfo: defaultPersonalInfo,
-  settings: {
-    template: 'modern',
-    accentColor: '#2563eb',
-    previewMode: 'paged',
-    showProfileHeader: true,
-    avatarAspectRatio: 0.714,
-    profileMetaNewLine: true,
-    contactMetaNewLine: true,
-    sectionTitleSize: 24,
-    contentFontSize: 15,
-    sectionGap: 18,
-    lineHeight: 1.55,
-    pageMarginTop: 40,
-    pageMarginBottom: 40,
-    pageMarginLeft: 44,
-    pageMarginRight: 44,
-  },
+  settings: createDefaultSettings(),
   sections: [
     createSection('education', {
       items: [
@@ -278,8 +291,6 @@ export const createDefaultResume = (): ResumeData => ({
     createSection('awards', {
       items: [
         {
-          name: '校级优秀毕业生',
-          dateRange: '2021.06',
           description: '因项目实践与综合表现突出获得院校表彰。',
         },
       ],
@@ -320,6 +331,28 @@ export const createDefaultResume = (): ResumeData => ({
         },
       ],
     }),
+  ],
+  updatedAt: new Date().toISOString(),
+});
+
+export const createBlankResume = (): ResumeData => ({
+  schemaVersion: 1,
+  personalInfo: blankPersonalInfo,
+  settings: createDefaultSettings(),
+  sections: [
+    createSection('education'),
+    createSection('projects'),
+    createSection('skills'),
+    createSection('awards'),
+    createSection('campus'),
+    createSection('internships', {
+      enabled: false,
+    }),
+    createSection('work', {
+      enabled: false,
+    }),
+    createSection('certificates'),
+    createSection('summary'),
   ],
   updatedAt: new Date().toISOString(),
 });
