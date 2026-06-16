@@ -57,7 +57,6 @@ export interface PersonalInfo {
 export interface ResumeSettings {
   template: 'modern';
   accentColor: string;
-  previewMode: 'paged' | 'compact';
   showProfileHeader: boolean;
   avatarAspectRatio: number;
   profileMetaNewLine: boolean;

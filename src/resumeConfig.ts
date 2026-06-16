@@ -224,7 +224,6 @@ const blankPersonalInfo: PersonalInfo = {
 const createDefaultSettings = () => ({
   template: 'modern' as const,
   accentColor: '#2563eb',
-  previewMode: 'paged' as const,
   showProfileHeader: true,
   avatarAspectRatio: 0.714,
   profileMetaNewLine: true,

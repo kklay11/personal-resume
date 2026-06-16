@@ -18,19 +18,11 @@
 
 ## 最近更新
 
-- 新增 Supabase 云端同步能力，支持多份云端简历切换、创建、删除和自动保存
-- 登录方式切换为邮箱 + 密码
-- 优化头像显示逻辑，减少上传后裁切异常
-- 模块描述支持基础 Markdown：
-  - `**加粗**`
-  - `- 列表`
-  - 空行分段
-- 专业技能改为整块编辑区，不再按分类拆分
-- 修复项目经历、获奖经历等跨页时标题重复问题
-- 优化左右双栏滚动：
-  - 鼠标在左侧时只滚左侧
-  - 鼠标在右侧时只滚右侧
-  - 页面外层不再抢滚轮
+- 新增 Supabase 云端保存与邮箱密码登录
+- 优化 PDF 导出清晰度与分页稳定性
+- 支持基础 Markdown、空行分段和更顺手的多行编辑
+- 调整预览版式、双栏滚动和认证入口体验
+- 简化部分模块结构，减少重复信息展示
 
 ## 技术栈
 
@@ -43,13 +35,27 @@
 
 ```text
 src/
-  App.tsx                    # 页面布局、编辑区、预览区、滚动与认证 UI
+  App.tsx                    # 页面布局与状态装配（编辑区、预览区、测量与认证入口）
   main.tsx                   # 入口文件
+  constants.ts               # A4 版面常量与字号选项
   resumeConfig.ts            # 简历模块 schema 与默认模板数据
   types.ts                   # 类型定义
+  components/
+    AuthScreen.tsx           # 登录 / 注册页面
+    BasicInfoForm.tsx        # 基本信息与头像表单
+    SectionForm.tsx          # 通用模块编辑表单
+    NumberField.tsx          # 数字输入字段
+    ConfigDrawer.tsx         # 简历配置与模块管理抽屉
+    ResumeHeader.tsx         # 简历头部（姓名 / 联系方式 / 头像）
+    ResumeItem.tsx           # 单条目渲染（预览与测量共用，保证分页一致）
+    ResumeSectionBlock.tsx   # 简历模块区块
   hooks/
     useResumeBuilder.ts      # 本地状态、云端同步、认证状态管理
   lib/
+    markdown.tsx             # 简单 Markdown 渲染（加粗 / 列表 / 分段）
+    pagination.ts            # 分页算法与跨页拆分
+    sectionContent.ts        # 条目内容辅助函数
+    utils.ts                 # 通用工具（滚动、数值约束、时间格式化）
     pdf.ts                   # 浏览器打印式 PDF 导出
     resumeData.ts            # schemaVersion 与数据兼容处理
     resumeStore.ts           # Supabase 数据访问层
