@@ -48,7 +48,6 @@ const App = () => {
     resumeList,
     currentResumeId,
     currentUserEmail,
-    authReady,
     cloudEnabled,
     isAuthSubmitting,
     syncState,
@@ -83,6 +82,7 @@ const App = () => {
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [previewPages, setPreviewPages] = useState<PreviewPage[]>([]);
   const [previewScale, setPreviewScale] = useState(1);
   const editorScrollRef = useRef<HTMLDivElement>(null);
@@ -308,12 +308,11 @@ const App = () => {
     setConfigTab(sectionId);
   };
 
-  const isAuthScreenVisible = cloudEnabled && !currentUserEmail;
+  const isAuthScreenVisible = cloudEnabled && !currentUserEmail && !isGuestMode;
 
   if (isAuthScreenVisible) {
     return (
       <AuthScreen
-        authReady={authReady}
         authMode={authMode}
         email={authEmailInput}
         password={authPasswordInput}
@@ -323,6 +322,7 @@ const App = () => {
         onPasswordChange={setAuthPasswordInput}
         onModeToggle={() => setAuthMode((prev) => (prev === 'sign-in' ? 'sign-up' : 'sign-in'))}
         onSubmit={() => void handleAuthSubmit()}
+        onGuest={() => setIsGuestMode(true)}
       />
     );
   }
@@ -343,7 +343,7 @@ const App = () => {
             {cloudError ? <div className="status-error">{cloudError}</div> : null}
           </div>
           <div className="header-actions">
-            {cloudEnabled ? (
+            {cloudEnabled && currentUserEmail ? (
               <>
                 <select
                   value={currentResumeId ?? ''}
@@ -369,6 +369,13 @@ const App = () => {
                 </button>
                 <button type="button" className="ghost-button" onClick={() => void signOut()}>
                   退出登录
+                </button>
+              </>
+            ) : cloudEnabled ? (
+              <>
+                <span className="status-chip">游客模式 · 仅本地保存</span>
+                <button type="button" className="ghost-button" onClick={() => setIsGuestMode(false)}>
+                  登录 / 注册
                 </button>
               </>
             ) : (

@@ -4,7 +4,6 @@ import {
   createResume as createCloudResume,
   deleteResume as deleteCloudResume,
   getCurrentSession,
-  getCurrentUser,
   getResume,
   listResumes,
   signInWithPassword as signInWithPasswordRequest,
@@ -66,6 +65,21 @@ const touch = (resume: ResumeData): ResumeData => ({
   schemaVersion: CURRENT_RESUME_SCHEMA_VERSION,
   updatedAt: new Date().toISOString(),
 });
+
+// Turn raw "Failed to fetch" style network errors into an actionable hint, since
+// they usually mean the Supabase project is paused/unreachable or schema.sql was
+// never applied — not something the user can tell from the default message.
+const describeCloudError = (error: unknown, fallback: string) => {
+  if (error instanceof Error) {
+    if (/failed to fetch|networkerror|fetch/i.test(error.message)) {
+      return '无法连接 Supabase：请确认项目未暂停、网络正常，且数据库已执行 schema.sql。';
+    }
+
+    return error.message;
+  }
+
+  return fallback;
+};
 
 const updateSection = (
   sections: ResumeSection[],
@@ -146,13 +160,16 @@ export const useResumeBuilder = () => {
 
     const bootstrap = async () => {
       try {
-        const [session, user] = await Promise.all([getCurrentSession(), getCurrentUser()]);
+        // A single getSession() call only — calling it concurrently (e.g. also
+        // via getCurrentUser) contends on supabase-js's navigator Web Lock and
+        // can stall auth init for a long time, freezing the login form.
+        const session = await getCurrentSession();
 
         if (!mounted) {
           return;
         }
 
-        setCurrentUserEmail(user?.email ?? session?.user?.email ?? null);
+        setCurrentUserEmail(session?.user?.email ?? null);
       } finally {
         if (mounted) {
           setAuthReady(true);
@@ -236,7 +253,7 @@ export const useResumeBuilder = () => {
         await loadCloudResume(targetResume.id);
         setSyncState('synced');
       } catch (error) {
-        setCloudError(error instanceof Error ? error.message : '云端数据初始化失败。');
+        setCloudError(describeCloudError(error, '云端数据初始化失败。'));
         setSyncState('error');
       }
     };
@@ -265,7 +282,7 @@ export const useResumeBuilder = () => {
         );
         setSyncState('synced');
       } catch (error) {
-        setCloudError(error instanceof Error ? error.message : '云端保存失败。');
+        setCloudError(describeCloudError(error, '云端保存失败。'));
         setSyncState('error');
       }
     }, 900);

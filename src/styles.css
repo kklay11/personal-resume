@@ -172,6 +172,25 @@ button {
   justify-content: center;
 }
 
+.auth-card__guest {
+  margin-top: 2px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-card__guest:hover:not(:disabled) {
+  color: var(--accent-color, #2563eb);
+}
+
+.auth-card__guest:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .editor-panel,
 .preview-panel {
   background: #ffffff;

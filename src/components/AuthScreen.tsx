@@ -1,5 +1,4 @@
 interface AuthScreenProps {
-  authReady: boolean;
   authMode: 'sign-in' | 'sign-up';
   email: string;
   password: string;
@@ -9,10 +8,10 @@ interface AuthScreenProps {
   onPasswordChange: (value: string) => void;
   onModeToggle: () => void;
   onSubmit: () => void;
+  onGuest: () => void;
 }
 
 export const AuthScreen = ({
-  authReady,
   authMode,
   email,
   password,
@@ -22,6 +21,7 @@ export const AuthScreen = ({
   onPasswordChange,
   onModeToggle,
   onSubmit,
+  onGuest,
 }: AuthScreenProps) => (
   <div className="auth-shell">
     <div className="auth-card">
@@ -56,7 +56,7 @@ export const AuthScreen = ({
             value={email}
             placeholder="name@example.com"
             onChange={(event) => onEmailChange(event.target.value)}
-            disabled={!authReady || isSubmitting}
+            disabled={isSubmitting}
           />
         </label>
 
@@ -67,16 +67,19 @@ export const AuthScreen = ({
             value={password}
             placeholder="至少 6 位"
             onChange={(event) => onPasswordChange(event.target.value)}
-            disabled={!authReady || isSubmitting}
+            disabled={isSubmitting}
           />
         </label>
 
         <div className="auth-card__actions">
-          <button type="button" className="primary-button" onClick={onSubmit} disabled={!authReady || isSubmitting || !cloudEnabled}>
+          <button type="button" className="primary-button" onClick={onSubmit} disabled={isSubmitting || !cloudEnabled}>
             {isSubmitting ? '提交中...' : authMode === 'sign-in' ? '登录并继续' : '注册账号'}
           </button>
-          <button type="button" className="ghost-button" onClick={onModeToggle} disabled={!authReady || isSubmitting}>
+          <button type="button" className="ghost-button" onClick={onModeToggle} disabled={isSubmitting}>
             {authMode === 'sign-in' ? '没有账号？去注册' : '已有账号？去登录'}
+          </button>
+          <button type="button" className="auth-card__guest" onClick={onGuest} disabled={isSubmitting}>
+            先不登录，以游客模式临时编辑（仅本地保存）
           </button>
         </div>
       </div>
